@@ -112,6 +112,41 @@ CREATE TABLE IF NOT EXISTS gracenote_mappings (
     updated_at TEXT NOT NULL
 );
 
+-- PRD reviews
+CREATE TABLE IF NOT EXISTS prd_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER,                -- optional link to work_items
+    prd_content TEXT DEFAULT '',   -- raw PRD text that was reviewed
+    reviewer TEXT DEFAULT 'ai',
+    score INTEGER DEFAULT 0,       -- 1-10 readiness score
+    feedback_json TEXT DEFAULT '{}', -- {gaps, risks, metrics_check, sentiment_alignment, suggestions}
+    created_at TEXT NOT NULL
+);
+
+-- Feature ideas
+CREATE TABLE IF NOT EXISTS feature_ideas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    area TEXT NOT NULL,             -- epg, discovery, sports, ads, etc.
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    user_need TEXT DEFAULT '',
+    competitive_advantage TEXT DEFAULT '',
+    estimated_impact TEXT DEFAULT '',
+    effort TEXT DEFAULT 'M',       -- S, M, L
+    votes INTEGER DEFAULT 0,
+    source_generation_id TEXT DEFAULT '', -- links ideas from same generation
+    created_at TEXT NOT NULL
+);
+
+-- Synthesized insights
+CREATE TABLE IF NOT EXISTS insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    answer_md TEXT DEFAULT '',
+    citations_json TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL
+);
+
 -- Query history
 CREATE TABLE IF NOT EXISTS query_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -623,7 +658,8 @@ def get_table_row_counts() -> dict:
     """Return row counts for all tables."""
     tables = ["work_items", "learnings", "data_verifications", "feedback",
               "experiments", "oem_snapshots", "gracenote_mappings", "query_history",
-              "change_log", "kpi_cache", "data_sources", "event_log"]
+              "change_log", "kpi_cache", "data_sources", "event_log",
+              "prd_reviews", "feature_ideas", "insights"]
     counts = {}
     with get_db() as conn:
         for t in tables:
@@ -632,6 +668,89 @@ def get_table_row_counts() -> dict:
             except Exception:
                 counts[t] = 0
     return counts
+
+
+# --- PRD Reviews ---
+
+def create_prd_review(prd_id: int = None, prd_content: str = "", reviewer: str = "ai",
+                      score: int = 0, feedback_json: dict = None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO prd_reviews (prd_id, prd_content, reviewer, score, feedback_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (prd_id, prd_content, reviewer, score,
+             json.dumps(feedback_json or {}), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_prd_reviews(prd_id: int = None, limit: int = 100) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM prd_reviews WHERE 1=1"
+        params = []
+        if prd_id is not None:
+            query += " AND prd_id = ?"
+            params.append(prd_id)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+# --- Feature Ideas ---
+
+def create_feature_idea(area: str, title: str, description: str = "",
+                        user_need: str = "", competitive_advantage: str = "",
+                        estimated_impact: str = "", effort: str = "M",
+                        source_generation_id: str = "") -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO feature_ideas (area, title, description, user_need,
+               competitive_advantage, estimated_impact, effort, source_generation_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (area, title, description, user_need, competitive_advantage,
+             estimated_impact, effort, source_generation_id, now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_feature_ideas(area: str = None, limit: int = 100) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM feature_ideas WHERE 1=1"
+        params = []
+        if area:
+            query += " AND area = ?"
+            params.append(area)
+        query += " ORDER BY votes DESC, created_at DESC LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def vote_feature_idea(id: int, direction: int = 1) -> int:
+    """Vote on a feature idea. direction=1 for upvote, -1 for downvote."""
+    with get_db() as conn:
+        conn.execute("UPDATE feature_ideas SET votes = votes + ? WHERE id = ?",
+                     (direction, id))
+        row = conn.execute("SELECT votes FROM feature_ideas WHERE id = ?", (id,)).fetchone()
+        return row["votes"] if row else 0
+
+
+# --- Insights ---
+
+def create_insight(question: str, answer_md: str = "", citations_json: list = None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO insights (question, answer_md, citations_json, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (question, answer_md, json.dumps(citations_json or []), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_insights(limit: int = 100) -> list:
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM insights ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
+>>>>>>> 3fe94d3 (Add knowledge engine: PRD reviewer, idea generator, insight synthesizer, weekly digest)
 
 
 # Initialize on import

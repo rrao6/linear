@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .config import HUB_PORT, HUB_HOST
-from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search, qa, monitor
+from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search, qa, monitor, knowledge
 from .monitoring import start_checker, stop_checker
 
 
@@ -55,6 +55,7 @@ app.include_router(strategy.router)
 app.include_router(search.router)
 app.include_router(qa.router)
 app.include_router(monitor.router)
+app.include_router(knowledge.router)
 
 # Static files
 STATIC_DIR = Path(__file__).parent / "static"
