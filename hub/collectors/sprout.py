@@ -316,6 +316,86 @@ def _classify_sentiment(text):
         return {"sentiment": "neutral", "score": 0.0, "topics": ["general"]}
 
 
+KNOWN_ENDPOINTS = [
+    ("GET",  "/metadata/client",                    "Account metadata (customer_id, users)"),
+    ("GET",  "/metadata/client/groups",             "Social profile groups"),
+    ("GET",  "/{cid}/messages/",                    "Smart Inbox messages"),
+    ("POST", "/{cid}/analytics/profiles",           "Profile analytics (followers, engagement)"),
+    ("POST", "/{cid}/analytics/posts",              "Post analytics (impressions, clicks)"),
+    ("GET",  "/{cid}/listening/topics",             "Listening topics"),
+    ("POST", "/{cid}/listening/topics/{tid}/metrics","Listening sentiment metrics"),
+    ("GET",  "/{cid}/metadata/tags",                "Message tags"),
+]
+
+
+def probe_api():
+    """Discover available Sprout Social API endpoints."""
+    print("=" * 60)
+    print("Sprout Social API Endpoint Discovery")
+    print("=" * 60)
+
+    if not SPROUT_API_KEY:
+        print("\n  No SPROUT_SOCIAL_API_KEY set.")
+        print("  Set via: export SPROUT_SOCIAL_API_KEY=your_token")
+        print("  Obtain from: Sprout Social → Settings → API & Integrations")
+        print("\n  Probing without auth (protected endpoints will show errors)...\n")
+
+    # Step 1: metadata to get client ID
+    print("[1] Probing metadata endpoint...")
+    client_id = get_client_id()
+    meta = _get("/metadata/client")
+    if meta:
+        cid_from_meta = None
+        for item in meta.get("data", []):
+            cid_from_meta = item.get("customer_id")
+            if cid_from_meta:
+                break
+        if cid_from_meta:
+            client_id = cid_from_meta
+        print(f"  OK — customer_id: {client_id}")
+    else:
+        print(f"  FAILED — decoded client_id guess: {client_id}")
+
+    # Step 2: probe each endpoint
+    print("\n[2] Probing all known endpoints...\n")
+    results = {}
+    for method, path, desc in KNOWN_ENDPOINTS:
+        display_path = path
+        actual_path = path.replace("{cid}", str(client_id) if client_id else "0")
+        actual_path = actual_path.replace("{tid}", "0")  # placeholder topic
+
+        if "{cid}" in path and not client_id:
+            results[path] = "SKIP (no customer_id)"
+            print(f"  SKIP  {method:4s} {display_path}")
+            print(f"        {desc}")
+            continue
+
+        if method == "GET":
+            resp = _get(actual_path)
+        else:
+            resp = _post(actual_path, {"filters": {}})
+
+        if resp is not None:
+            results[path] = "OK"
+            detail = ""
+            if isinstance(resp, dict) and "data" in resp:
+                detail = f" ({len(resp['data'])} items)"
+            print(f"  OK    {method:4s} {display_path}{detail}")
+        else:
+            results[path] = "FAIL"
+            print(f"  FAIL  {method:4s} {display_path}")
+        print(f"        {desc}")
+
+    # Summary
+    ok = sum(1 for v in results.values() if v == "OK")
+    print(f"\n{'=' * 60}")
+    print(f"Accessible: {ok}/{len(results)} endpoints")
+    if client_id:
+        print(f"Customer ID: {client_id}")
+    print(f"Base URL: {SPROUT_BASE_URL}")
+    print()
+
+
 def push_to_hub(items):
     """Push collected items to the hub API."""
     for item in items:
