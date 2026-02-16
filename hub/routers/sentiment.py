@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks
@@ -191,3 +193,88 @@ def collect_sprout(req: SproutCollectRequest, background_tasks: BackgroundTasks)
         "message": f"Sprout Social collection started (last {req.days} days, limit {req.limit})",
         "source": "sprout",
     }
+
+
+# --- Collector trigger endpoints ---
+
+def _run_reddit_collector():
+    """Run Reddit collector in a background thread."""
+    try:
+        from ..collectors.reddit import collect_reddit, push_to_hub
+        items = collect_reddit()
+        if items:
+            push_to_hub(items)
+    except Exception as e:
+        print(f"Reddit collector error: {e}")
+
+
+def _run_appstore_collector():
+    """Run AppStore collector in a background thread."""
+    try:
+        from ..collectors.appstore import collect_apple_reviews, push_to_hub
+        items = collect_apple_reviews()
+        if items:
+            push_to_hub(items)
+    except Exception as e:
+        print(f"AppStore collector error: {e}")
+
+
+@router.post("/collect/reddit")
+def trigger_reddit_collection():
+    """Trigger Reddit sentiment collection in background."""
+    t = threading.Thread(target=_run_reddit_collector, daemon=True)
+    t.start()
+    return {"status": "started", "collector": "reddit"}
+
+
+@router.post("/collect/appstore")
+def trigger_appstore_collection():
+    """Trigger App Store review collection in background."""
+    t = threading.Thread(target=_run_appstore_collector, daemon=True)
+    t.start()
+    return {"status": "started", "collector": "appstore"}
+
+
+@router.post("/collect/all")
+def trigger_all_collection():
+    """Trigger all sentiment collectors in background."""
+    collectors = []
+    for name, func in [("reddit", _run_reddit_collector),
+                        ("appstore", _run_appstore_collector)]:
+        t = threading.Thread(target=func, daemon=True)
+        t.start()
+        collectors.append(name)
+    return {"status": "started", "collectors": collectors}
+
+
+# --- Trends endpoint ---
+
+@router.get("/trends")
+def sentiment_trends(days: int = 30):
+    """Get sentiment score averaged by day for the last N days."""
+    with db.get_db() as conn:
+        since = (datetime.now() - timedelta(days=days)).isoformat()
+        rows = conn.execute(
+            """SELECT DATE(collected_at) as day,
+                      AVG(sentiment_score) as avg_score,
+                      COUNT(*) as count,
+                      SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) as positive,
+                      SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) as negative,
+                      SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as neutral
+               FROM feedback
+               WHERE collected_at >= ?
+               GROUP BY DATE(collected_at)
+               ORDER BY day ASC""",
+            (since,),
+        ).fetchall()
+        return [
+            {
+                "day": r["day"],
+                "avg_score": round(r["avg_score"], 3) if r["avg_score"] else 0.0,
+                "count": r["count"],
+                "positive": r["positive"],
+                "negative": r["negative"],
+                "neutral": r["neutral"],
+            }
+            for r in rows
+        ]
