@@ -135,6 +135,13 @@ CREATE TABLE IF NOT EXISTS change_log (
     tags TEXT DEFAULT '[]',
     created_at TEXT NOT NULL
 );
+
+-- KPI cache: Databricks query results with TTL
+CREATE TABLE IF NOT EXISTS kpi_cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,           -- JSON-encoded result
+    fetched_at TEXT NOT NULL       -- ISO timestamp of when data was fetched
+);
 """
 
 
@@ -464,6 +471,35 @@ def get_change_log(type: str = None, limit: int = 100) -> list:
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+# --- KPI Cache ---
+
+KPI_CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
+def get_cached_kpi(key: str):
+    """Return cached value if it exists and is within TTL, else None."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value, fetched_at FROM kpi_cache WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None:
+            return None
+        fetched_at = datetime.fromisoformat(row["fetched_at"])
+        age = (datetime.now() - fetched_at).total_seconds()
+        if age > KPI_CACHE_TTL_SECONDS:
+            return None
+        return json.loads(row["value"])
+
+
+def set_cached_kpi(key: str, value) -> None:
+    """Upsert a cache entry."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO kpi_cache (key, value, fetched_at) VALUES (?, ?, ?)",
+            (key, json.dumps(value, default=str), now_iso()),
+        )
 
 
 # Initialize on import
