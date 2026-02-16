@@ -45,7 +45,7 @@ ORDER BY tvt_hours DESC
 
 # Map Databricks platform values to our OEM platform IDs
 PLATFORM_MAP = {
-    "AMAZONFIRETV": "amazon_fire",
+    "AMAZON": "amazon_fire",
     "ROKU": "roku",
     "SAMSUNG": "samsung",
     "LGTV": "lg",
