@@ -1,4 +1,4 @@
-"""Dashboard overview: KPIs, goal tracking, system health.
+"""Dashboard overview: KPIs, goal tracking, system health, AI summary.
 
 Queries live Databricks data for linear KPIs and caches results in SQLite
 with a 1-hour TTL so we don't hammer the warehouse on every page load.
@@ -6,13 +6,14 @@ with a 1-hour TTL so we don't hammer the warehouse on every page load.
 
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime
 
 from fastapi import APIRouter
 
-from ..config import SCANS_DIR, INTEL_DIR, ANALYSIS_DIR, PLUGINS_DIR
+from ..config import SCANS_DIR, INTEL_DIR, ANALYSIS_DIR, PLUGINS_DIR, OPENAI_API_KEY
 from .. import db
 
 # Add linear-data plugin to path
@@ -245,32 +246,37 @@ def get_overview():
     }
 
     # Format trend data for charting (list of {date, total_hours, linear_hours})
+    # Cast to float to avoid returning Decimal/string types from Databricks
     trend_data = []
     if daily_trend:
         for row in daily_trend:
+            total_h = row.get("total_tvt_hours")
+            linear_h = row.get("linear_tvt_hours")
             trend_data.append({
                 "date": str(row.get("dt", "")),
-                "total_tvt_hours": row.get("total_tvt_hours"),
-                "linear_tvt_hours": row.get("linear_tvt_hours"),
+                "total_tvt_hours": float(total_h) if total_h is not None else 0.0,
+                "linear_tvt_hours": float(linear_h) if linear_h is not None else 0.0,
             })
 
-    # Format top channels
+    # Format top channels — cast tvt_hours to float
     channels_data = []
     if top_channels:
         for row in top_channels:
+            h = row.get("tvt_hours")
             channels_data.append({
                 "channel_name": row.get("channel_name", "Unknown"),
                 "content_id": row.get("content_id"),
-                "tvt_hours": row.get("tvt_hours"),
+                "tvt_hours": float(h) if h is not None else 0.0,
             })
 
-    # Format platform breakdown
+    # Format platform breakdown — cast tvt_hours to float
     platform_data = []
     if platform_breakdown:
         for row in platform_breakdown:
+            h = row.get("tvt_hours")
             platform_data.append({
                 "platform": row.get("platform", "Unknown"),
-                "tvt_hours": row.get("tvt_hours"),
+                "tvt_hours": float(h) if h is not None else 0.0,
             })
 
     # QA status indicator
@@ -313,22 +319,148 @@ def get_overview():
 
 @router.get("/goals")
 def get_goals():
-    """H2 FY26 goal tracking."""
+    """H2 FY26 goal tracking with real progress from work items."""
+    # Define initiatives with their associated tag for matching work items
+    initiatives_def = [
+        {"name": "Sea Tiger (NFL, World Cup)", "tag": "sea_tiger", "tvt_impact": "TBD"},
+        {"name": "Registration Gate", "tag": "registration", "tvt_impact": "TBD"},
+        {"name": "Metadata Improvements", "tag": "metadata", "tvt_impact": "+0.05%"},
+        {"name": "Linear Detail Pages", "tag": "detail_pages", "tvt_impact": "+0.10%"},
+        {"name": "Partner Integration", "tag": "partner", "tvt_impact": "TBD"},
+        {"name": "Promote Upcoming Programs", "tag": "upcoming_programs", "tvt_impact": "+0.04%"},
+        {"name": "Program-level Ranking", "tag": "program_ranking", "tvt_impact": "+0.02%"},
+        {"name": "Streamlined Channel Browsing", "tag": "channel_browsing", "tvt_impact": "+0.05%"},
+        {"name": "Container Ranking", "tag": "container_ranking", "tvt_impact": "+0.01%"},
+    ]
+
+    # Pull all work items to compute progress per initiative
+    all_work = db.get_work_items(limit=500)
+
+    initiatives = []
+    for init in initiatives_def:
+        tag = init["tag"]
+        # Match work items whose tags JSON contains this tag, or whose title contains the tag/name
+        matched = [w for w in all_work if tag in w.get("tags", "")
+                    or tag in w.get("title", "").lower()
+                    or init["name"].split("(")[0].strip().lower() in w.get("title", "").lower()]
+        total = len(matched)
+        done = sum(1 for w in matched if w["status"] == "done")
+
+        # Derive status from work item states
+        if total == 0:
+            status = "planned"
+            progress_pct = 0
+        elif done == total:
+            status = "completed"
+            progress_pct = 100
+        elif any(w["status"] == "blocked" for w in matched):
+            status = "blocked"
+            progress_pct = round((done / total) * 100) if total else 0
+        elif any(w["status"] in ("in_progress", "open") for w in matched):
+            status = "in_progress"
+            progress_pct = round((done / total) * 100) if total else 0
+        else:
+            status = "planned"
+            progress_pct = 0
+
+        initiatives.append({
+            "name": init["name"],
+            "status": status,
+            "tvt_impact": init["tvt_impact"],
+            "tag": tag,
+            "work_items_total": total,
+            "work_items_done": done,
+            "progress_pct": progress_pct,
+        })
+
     return {
         "period": "H2 FY26",
         "goals": [
             {"name": "Global TVT", "target": "+0.22%", "metric": "tvt_share_delta"},
             {"name": "Linear TVT", "target": "+5.32%", "metric": "linear_tvt_share_delta"},
         ],
-        "initiatives": [
-            {"name": "Sea Tiger (NFL, World Cup)", "status": "in_progress", "tvt_impact": "TBD"},
-            {"name": "Registration Gate", "status": "planned", "tvt_impact": "TBD"},
-            {"name": "Metadata Improvements", "status": "in_progress", "tvt_impact": "+0.05%"},
-            {"name": "Linear Detail Pages", "status": "planned", "tvt_impact": "+0.10%"},
-            {"name": "Partner Integration", "status": "in_progress", "tvt_impact": "TBD"},
-            {"name": "Promote Upcoming Programs", "status": "planned", "tvt_impact": "+0.04%"},
-            {"name": "Program-level Ranking", "status": "planned", "tvt_impact": "+0.02%"},
-            {"name": "Streamlined Channel Browsing", "status": "in_progress", "tvt_impact": "+0.05%"},
-            {"name": "Container Ranking", "status": "planned", "tvt_impact": "+0.01%"},
-        ],
+        "initiatives": initiatives,
     }
+
+
+# ---------------------------------------------------------------------------
+# AI Summary endpoint
+# ---------------------------------------------------------------------------
+
+# In-memory cache for AI summary
+_summary_cache = {"text": None, "generated_at": None}
+_SUMMARY_CACHE_TTL = 3600  # 1 hour
+
+
+@router.get("/summary")
+def get_summary():
+    """AI-generated summary of current state. Uses OpenAI gpt-4o, cached 1 hour."""
+    import time as _time
+
+    # Check cache
+    if (_summary_cache["text"] is not None
+            and _summary_cache["generated_at"] is not None
+            and (_time.time() - _summary_cache["generated_at"]) < _SUMMARY_CACHE_TTL):
+        return {"summary": _summary_cache["text"], "cached": True}
+
+    # Gather context for the summary
+    try:
+        overview = get_overview()
+    except Exception:
+        overview = {}
+
+    kpis = overview.get("kpis", {})
+    work = overview.get("work", {})
+    sentiment = overview.get("sentiment", {})
+    intel = overview.get("intel", {})
+    experiments = overview.get("experiments", {})
+    qa = overview.get("qa_status", {})
+
+    context = (
+        f"Linear TVT share: {kpis.get('linear_tvt_share_current', 'N/A')}% (target: {kpis.get('linear_tvt_share_target', 9.0)}%). "
+        f"Channel count: {kpis.get('channel_count', 'N/A')}. "
+        f"Data source: {kpis.get('source', 'unknown')}. "
+        f"Work items: {work.get('open', 0)} open, {work.get('in_progress', 0)} in progress, {work.get('blocked', 0)} blocked, {work.get('done', 0)} done. "
+        f"Sentiment: {sentiment.get('total', 0)} feedback items, avg score {sentiment.get('avg_score', 0)}. "
+        f"Intel: {intel.get('signals', 0)} signals, {intel.get('findings', 0)} findings. "
+        f"Experiments: {experiments.get('running', 0)} running of {experiments.get('total', 0)} total. "
+        f"QA status: {qa.get('indicator', 'unknown')} — {qa.get('message', '')}. "
+        f"Top channels data: {len(overview.get('top_channels', []))} channels loaded. "
+        f"Platform breakdown: {len(overview.get('platform_breakdown', []))} platforms loaded."
+    )
+
+    # Call OpenAI
+    if not OPENAI_API_KEY:
+        summary_text = (
+            f"Linear TVT share is at {kpis.get('linear_tvt_share_current', 'N/A')}% vs the 9.0% target. "
+            f"There are {work.get('open', 0)} open and {work.get('blocked', 0)} blocked work items. "
+            f"AI summary requires OPENAI_API_KEY in .env."
+        )
+        _summary_cache["text"] = summary_text
+        _summary_cache["generated_at"] = _time.time()
+        return {"summary": summary_text, "cached": False}
+
+    try:
+        import openai
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a concise executive briefer for a streaming TV analytics hub. Write a single paragraph (3-5 sentences) summarizing the current state. Cover: what's going well, what's concerning, and what needs attention. Be specific with numbers. No bullet points, no headers — just a paragraph."},
+                {"role": "user", "content": f"Here is the current state of the Linear Hub:\n\n{context}"},
+            ],
+            max_tokens=300,
+            temperature=0.7,
+        )
+        summary_text = resp.choices[0].message.content.strip()
+    except Exception as e:
+        log.warning("OpenAI summary generation failed: %s", e)
+        summary_text = (
+            f"Linear TVT share is at {kpis.get('linear_tvt_share_current', 'N/A')}% vs the 9.0% target. "
+            f"There are {work.get('open', 0)} open and {work.get('blocked', 0)} blocked work items requiring attention. "
+            f"(AI summary generation failed: {str(e)[:100]})"
+        )
+
+    _summary_cache["text"] = summary_text
+    _summary_cache["generated_at"] = _time.time()
+    return {"summary": summary_text, "cached": False}

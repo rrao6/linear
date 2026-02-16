@@ -257,8 +257,42 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 
     <!-- DASHBOARD PAGE -->
     <div class="page active" id="page-dashboard">
+      <!-- AI Summary -->
+      <div class="card" id="ai-summary-card" style="margin-bottom:16px;border-left:3px solid var(--accent)">
+        <h3 style="display:flex;align-items:center;gap:6px">AI Summary <span style="font-size:10px;color:var(--text3);font-weight:400" id="ai-summary-meta"></span></h3>
+        <div id="ai-summary" style="font-size:13px;line-height:1.7;color:var(--text)">
+          <div class="loading-overlay"><span class="spinner"></span> Generating summary...</div>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
       <div class="grid g5" id="kpi-cards"></div>
 
+      <!-- Charts Row: TVT Trend (wide) -->
+      <div class="card" style="margin-bottom:16px">
+        <h3>90-Day TVT Trend</h3>
+        <div style="position:relative;height:300px">
+          <canvas id="tvt-trend-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Charts Row: Top Channels + Platform Breakdown -->
+      <div class="grid g2" style="margin-bottom:16px">
+        <div class="card">
+          <h3>Top Channels (30d TVT Hours)</h3>
+          <div style="position:relative;height:320px">
+            <canvas id="top-channels-chart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Platform Breakdown (Linear TVT)</h3>
+          <div style="position:relative;height:320px;display:flex;align-items:center;justify-content:center">
+            <canvas id="platform-chart" style="max-width:320px;max-height:320px"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Goal Progress + System Health -->
       <div class="grid g2">
         <div class="card">
           <h3>Goal Progress — H2 FY26</h3>
@@ -270,6 +304,7 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
         </div>
       </div>
 
+      <!-- Work / Verifications / Sentiment -->
       <div class="grid g3">
         <div class="card">
           <h3>Work Items</h3>
@@ -285,11 +320,12 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
         </div>
       </div>
 
+      <!-- Active Initiatives with Progress Bars -->
       <div class="section-title">Active Initiatives</div>
       <div class="card">
         <div class="table-wrap">
           <table id="initiatives-table">
-            <thead><tr><th>Initiative</th><th>Status</th><th>TVT Impact</th></tr></thead>
+            <thead><tr><th>Initiative</th><th>Status</th><th>Progress</th><th>TVT Impact</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -664,6 +700,11 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// --- Chart instance tracking (destroy before re-creating) ---
+let _tvtTrendChart = null;
+let _topChannelsChart = null;
+let _platformChart = null;
+
 // --- Dashboard ---
 async function loadDashboard() {
   showLoading('kpi-cards');
@@ -676,13 +717,25 @@ async function loadDashboard() {
       api('/api/dashboard/goals'),
     ]);
 
+    // Load AI summary (non-blocking)
+    api('/api/dashboard/summary').then(r => {
+      document.getElementById('ai-summary').innerHTML = `<p style="margin:0">${escapeHtml(r.summary)}</p>`;
+      document.getElementById('ai-summary-meta').textContent = r.cached ? '(cached)' : '(fresh)';
+    }).catch(() => {
+      document.getElementById('ai-summary').innerHTML = '<span style="color:var(--text3)">Summary unavailable</span>';
+    });
+
     const k = overview.kpis || {};
+    const sentTotal = overview.sentiment?.total || 0;
+    const workOpen = overview.work?.open || 0;
+
+    // KPI cards: TVT%, target%, channels, sentiment items, open work items
     const kpis = [
-      { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)', rawColor: '#58a6ff', sparkData: [3.1, 3.4, 3.6, 3.8, 3.9, 4.0, 4.1, 4.28] },
-      { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)', rawColor: '#3fb950', sparkData: [275, 290, 300, 310, 320, 330, 335, 340] },
-      { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)', rawColor: '#bc8cff', sparkData: [2, 5, 8, 12, 15, 18, 22, overview.intel?.signals || 25] },
-      { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)', rawColor: '#d29922', sparkData: [0, 1, 1, 2, 3, 3, 4, overview.experiments?.total || 5] },
-      { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)', rawColor: '#56d4dd', sparkData: [1, 3, 5, 8, 10, 13, 16, overview.learnings || 18] },
+      { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)', rawColor: '#58a6ff', sparkData: [3.1, 3.4, 3.6, 3.8, 3.9, 4.0, 4.1, k.linear_tvt_share_current || 4.28] },
+      { label: 'Target TVT', value: k.linear_tvt_share_target + '%', sub: 'H2 FY26 goal', color: 'var(--green)', rawColor: '#3fb950', sparkData: [6, 6.5, 7, 7.5, 8, 8.5, 9, 9] },
+      { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--purple)', rawColor: '#bc8cff', sparkData: [275, 290, 300, 310, 320, 330, 335, k.channel_count || 340] },
+      { label: 'Sentiment Items', value: sentTotal, sub: `Avg: ${overview.sentiment?.avg_score || 0}`, color: 'var(--orange)', rawColor: '#d29922', sparkData: [2, 5, 8, 10, 12, 14, 16, sentTotal] },
+      { label: 'Open Work Items', value: workOpen, sub: `${overview.work?.in_progress || 0} in progress`, color: 'var(--cyan)', rawColor: '#56d4dd', sparkData: [1, 3, 5, 8, 10, 13, 16, workOpen] },
     ];
 
     document.getElementById('kpi-cards').innerHTML = kpis.map((kpi, i) =>
@@ -717,7 +770,170 @@ async function loadDashboard() {
       });
     });
 
-    // Goal progress
+    // --- 90-Day TVT Trend Line Chart ---
+    const trendData = overview.daily_trend || [];
+    if (_tvtTrendChart) { _tvtTrendChart.destroy(); _tvtTrendChart = null; }
+    const trendCtx = document.getElementById('tvt-trend-chart');
+    if (trendCtx && trendData.length > 0) {
+      const labels = trendData.map(d => d.date);
+      const totalHours = trendData.map(d => d.total_tvt_hours);
+      const linearHours = trendData.map(d => d.linear_tvt_hours);
+      const linearPct = trendData.map(d => d.total_tvt_hours > 0 ? ((d.linear_tvt_hours / d.total_tvt_hours) * 100).toFixed(2) : 0);
+
+      _tvtTrendChart = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Total TVT (hours)',
+              data: totalHours,
+              borderColor: '#58a6ff',
+              backgroundColor: 'rgba(88,166,255,0.1)',
+              fill: true,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.3,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Linear TVT (hours)',
+              data: linearHours,
+              borderColor: '#3fb950',
+              backgroundColor: 'rgba(63,185,80,0.1)',
+              fill: true,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.3,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Linear %',
+              data: linearPct,
+              borderColor: '#d29922',
+              borderDash: [5, 3],
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.3,
+              yAxisID: 'y1',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { color: '#8b949e', font: { size: 11 }, padding: 16 } },
+            tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#c9d1d9', bodyColor: '#8b949e' },
+          },
+          scales: {
+            x: {
+              ticks: { color: '#6e7681', font: { size: 10 }, maxTicksLimit: 15, maxRotation: 0 },
+              grid: { color: 'rgba(48,54,61,0.5)' },
+            },
+            y: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'TVT Hours', color: '#8b949e', font: { size: 11 } },
+              ticks: { color: '#6e7681', font: { size: 10 } },
+              grid: { color: 'rgba(48,54,61,0.5)' },
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              title: { display: true, text: 'Linear %', color: '#d29922', font: { size: 11 } },
+              ticks: { color: '#d29922', font: { size: 10 }, callback: v => v + '%' },
+              grid: { drawOnChartArea: false },
+            },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    } else if (trendCtx) {
+      trendCtx.parentElement.innerHTML = '<div class="empty-state" style="padding:40px"><div class="empty-state-title">No trend data available</div><div class="empty-state-desc">Databricks query returned no daily trend data</div></div>';
+    }
+
+    // --- Top Channels Horizontal Bar Chart ---
+    const channelsData = overview.top_channels || [];
+    if (_topChannelsChart) { _topChannelsChart.destroy(); _topChannelsChart = null; }
+    const channelsCtx = document.getElementById('top-channels-chart');
+    if (channelsCtx && channelsData.length > 0) {
+      _topChannelsChart = new Chart(channelsCtx, {
+        type: 'bar',
+        data: {
+          labels: channelsData.map(c => c.channel_name),
+          datasets: [{
+            label: 'TVT Hours',
+            data: channelsData.map(c => c.tvt_hours),
+            backgroundColor: [
+              '#58a6ff', '#3fb950', '#d29922', '#bc8cff', '#f85149',
+              '#56d4dd', '#f778ba', '#e3b341', '#8b949e', '#58a6ff'
+            ],
+            borderWidth: 0,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#c9d1d9', bodyColor: '#8b949e',
+              callbacks: { label: ctx => `${ctx.parsed.x.toLocaleString()} hours` } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'TVT Hours', color: '#8b949e', font: { size: 11 } },
+              ticks: { color: '#6e7681', font: { size: 10 }, callback: v => v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v },
+              grid: { color: 'rgba(48,54,61,0.5)' },
+            },
+            y: {
+              ticks: { color: '#c9d1d9', font: { size: 11 } },
+              grid: { display: false },
+            },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    } else if (channelsCtx) {
+      channelsCtx.parentElement.innerHTML = '<div class="empty-state"><div class="empty-state-title">No channel data</div></div>';
+    }
+
+    // --- Platform Breakdown Donut Chart ---
+    const platformData = overview.platform_breakdown || [];
+    if (_platformChart) { _platformChart.destroy(); _platformChart = null; }
+    const platformCtx = document.getElementById('platform-chart');
+    if (platformCtx && platformData.length > 0) {
+      _platformChart = new Chart(platformCtx, {
+        type: 'doughnut',
+        data: {
+          labels: platformData.map(p => p.platform),
+          datasets: [{
+            data: platformData.map(p => p.tvt_hours),
+            backgroundColor: ['#58a6ff', '#3fb950', '#d29922', '#bc8cff', '#f85149', '#56d4dd', '#f778ba', '#e3b341', '#8b949e'],
+            borderColor: '#161b22',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '55%',
+          plugins: {
+            legend: { position: 'right', labels: { color: '#8b949e', padding: 8, font: { size: 11 } } },
+            tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#c9d1d9', bodyColor: '#8b949e',
+              callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} hours` } },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    } else if (platformCtx) {
+      platformCtx.parentElement.innerHTML = '<div class="empty-state"><div class="empty-state-title">No platform data</div></div>';
+    }
+
+    // Goal progress with initiative progress bars
     const tvtPct = Math.min(100, (k.linear_tvt_share_current / k.linear_tvt_share_target) * 100);
     document.getElementById('goal-progress').innerHTML = `
       <div style="margin-bottom:12px">
@@ -729,19 +945,19 @@ async function loadDashboard() {
       ${(goals.goals || []).map(g => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${g.name}</span><span class="tag tag-blue">${g.target}</span></div>`).join('')}
     `;
 
-  // System health
-  const scan = overview.latest_scan;
-  const mon = overview.monitor || {};
-  const monStatus = (mon.sources_stale > 0 || mon.sources_error > 0) ? '<span style="color:var(--orange)">degraded</span>' : '<span style="color:var(--green)">healthy</span>';
-  document.getElementById('system-health').innerHTML = `
-    <div style="font-size:13px">
-      <div style="padding:4px 0">Status: ${monStatus}</div>
-      <div style="padding:4px 0">Sources: <span style="color:var(--green)">${mon.sources_healthy || 0} healthy</span>${mon.sources_stale ? `, <span style="color:var(--orange)">${mon.sources_stale} stale</span>` : ''}${mon.sources_error ? `, <span style="color:var(--red)">${mon.sources_error} error</span>` : ''}</div>
-      ${mon.open_alerts ? `<div style="padding:4px 0;color:var(--orange)">Alerts: ${mon.open_alerts} open</div>` : ''}
-      <div style="padding:4px 0">Latest scan: ${scan ? scan.scan_date + '/' + scan.run_id : 'None'}</div>
-      <div style="padding:4px 0">Articles: ${scan?.articles_collected || 0} &middot; Reports: ${overview.intel?.reports || 0}</div>
-    </div>
-  `;
+    // System health
+    const scan = overview.latest_scan;
+    const mon = overview.monitor || {};
+    const monStatus = (mon.sources_stale > 0 || mon.sources_error > 0) ? '<span style="color:var(--orange)">degraded</span>' : '<span style="color:var(--green)">healthy</span>';
+    document.getElementById('system-health').innerHTML = `
+      <div style="font-size:13px">
+        <div style="padding:4px 0">Status: ${monStatus}</div>
+        <div style="padding:4px 0">Sources: <span style="color:var(--green)">${mon.sources_healthy || 0} healthy</span>${mon.sources_stale ? `, <span style="color:var(--orange)">${mon.sources_stale} stale</span>` : ''}${mon.sources_error ? `, <span style="color:var(--red)">${mon.sources_error} error</span>` : ''}</div>
+        ${mon.open_alerts ? `<div style="padding:4px 0;color:var(--orange)">Alerts: ${mon.open_alerts} open</div>` : ''}
+        <div style="padding:4px 0">Latest scan: ${scan ? scan.scan_date + '/' + scan.run_id : 'None'}</div>
+        <div style="padding:4px 0">Articles: ${scan?.articles_collected || 0} &middot; Reports: ${overview.intel?.reports || 0}</div>
+      </div>
+    `;
 
     // Work summary
     const w = overview.work || {};
@@ -774,14 +990,27 @@ async function loadDashboard() {
       </div>
     `;
 
-    // Initiatives
+    // Initiatives with progress bars
     const tbody = document.querySelector('#initiatives-table tbody');
     if (goals.initiatives && goals.initiatives.length) {
-      tbody.innerHTML = goals.initiatives.map(i =>
-        `<tr><td>${i.name}</td><td>${statusTag(i.status)}</td><td>${i.tvt_impact}</td></tr>`
-      ).join('');
+      tbody.innerHTML = goals.initiatives.map(i => {
+        const pct = i.progress_pct || 0;
+        const barColor = i.status === 'completed' ? 'var(--green)' : i.status === 'blocked' ? 'var(--red)' : 'var(--accent)';
+        const workLabel = i.work_items_total > 0 ? `${i.work_items_done}/${i.work_items_total}` : '—';
+        return `<tr>
+          <td>${i.name}</td>
+          <td>${statusTag(i.status)}</td>
+          <td style="min-width:140px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="progress-bar" style="flex:1;height:6px"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
+              <span style="font-size:11px;color:var(--text3);white-space:nowrap">${workLabel}</span>
+            </div>
+          </td>
+          <td>${i.tvt_impact}</td>
+        </tr>`;
+      }).join('');
     } else {
-      tbody.innerHTML = `<tr><td colspan="3">${emptyState('&#9632;', 'No active initiatives', 'Strategic initiatives will appear here')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4">${emptyState('&#9632;', 'No active initiatives', 'Strategic initiatives will appear here')}</td></tr>`;
     }
   } catch (err) {
     document.getElementById('kpi-cards').innerHTML = emptyState('&#9888;', 'Failed to load dashboard', 'Check server connection and try refreshing', '<button class="btn btn-sm" onclick="loadDashboard()">Retry</button>');
