@@ -231,6 +231,49 @@ CREATE TABLE IF NOT EXISTS ai_insights (
     content_json TEXT NOT NULL,    -- JSON blob with structured analysis
     created_at TEXT NOT NULL
 );
+
+-- Problem groups: clustered user problems detected from feedback
+CREATE TABLE IF NOT EXISTS problems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    area TEXT DEFAULT '',
+    journey_stage TEXT DEFAULT '',
+    severity TEXT DEFAULT 'annoying',
+    count INTEGER DEFAULT 0,
+    platforms_json TEXT DEFAULT '[]',
+    first_seen TEXT,
+    last_seen TEXT,
+    trend TEXT DEFAULT 'stable',
+    score REAL DEFAULT 0.0,
+    embedding_json TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Problem quotes: individual feedback items linked to a problem group
+CREATE TABLE IF NOT EXISTS problem_quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    problem_id INTEGER NOT NULL,
+    feedback_id INTEGER,
+    quote_text TEXT NOT NULL,
+    source TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (problem_id) REFERENCES problems(id)
+);
+
+-- Problem links: connect problems to work items or experiments
+CREATE TABLE IF NOT EXISTS problem_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    problem_id INTEGER NOT NULL,
+    work_item_id INTEGER,
+    experiment_id INTEGER,
+    status TEXT DEFAULT 'linked',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (problem_id) REFERENCES problems(id),
+    FOREIGN KEY (work_item_id) REFERENCES work_items(id),
+    FOREIGN KEY (experiment_id) REFERENCES experiments(id)
+);
 """
 
 
@@ -867,6 +910,133 @@ def log_ask(question: str, sql: str, error: str = "", elapsed_sec: float = 0.0,
 
 def get_ask_history(limit: int = 50) -> list:
     return get_query_history(limit=limit)
+
+
+# --- Problems ---
+
+def create_problem(title: str, description: str = "", area: str = "",
+                   journey_stage: str = "", severity: str = "annoying",
+                   count: int = 0, platforms: list = None,
+                   first_seen: str = "", last_seen: str = "",
+                   trend: str = "stable", score: float = 0.0,
+                   embedding: list = None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO problems (title, description, area, journey_stage, severity,
+               count, platforms_json, first_seen, last_seen, trend, score, embedding_json,
+               created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, description, area, journey_stage, severity,
+             count, json.dumps(platforms or []),
+             first_seen or now_iso(), last_seen or now_iso(),
+             trend, score, json.dumps(embedding or []),
+             now_iso(), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_problems(area: str = None, journey_stage: str = None,
+                 severity: str = None, limit: int = 100) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM problems WHERE 1=1"
+        params = []
+        if area:
+            query += " AND area = ?"
+            params.append(area)
+        if journey_stage:
+            query += " AND journey_stage = ?"
+            params.append(journey_stage)
+        if severity:
+            query += " AND severity = ?"
+            params.append(severity)
+        query += " ORDER BY score DESC, count DESC LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def get_problem(id: int):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM problems WHERE id = ?", (id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_problem(id: int, **kwargs) -> bool:
+    allowed = {"title", "description", "area", "journey_stage", "severity",
+               "count", "platforms_json", "first_seen", "last_seen", "trend",
+               "score", "embedding_json"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return False
+    updates["updated_at"] = now_iso()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    with get_db() as conn:
+        conn.execute(f"UPDATE problems SET {set_clause} WHERE id = ?",
+                     list(updates.values()) + [id])
+    return True
+
+
+def create_problem_quote(problem_id: int, quote_text: str,
+                         feedback_id: int = None, source: str = "") -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO problem_quotes (problem_id, feedback_id, quote_text, source, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (problem_id, feedback_id, quote_text, source, now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_problem_quotes(problem_id: int, limit: int = 50) -> list:
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM problem_quotes WHERE problem_id = ? ORDER BY created_at DESC LIMIT ?",
+            (problem_id, limit)).fetchall()]
+
+
+def create_problem_link(problem_id: int, work_item_id: int = None,
+                        experiment_id: int = None, status: str = "linked") -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO problem_links (problem_id, work_item_id, experiment_id, status, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (problem_id, work_item_id, experiment_id, status, now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_problem_links(problem_id: int) -> list:
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM problem_links WHERE problem_id = ?", (problem_id,)).fetchall()]
+
+
+def get_unaddressed_problems(limit: int = 100) -> list:
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            """SELECT p.* FROM problems p
+               LEFT JOIN problem_links pl ON p.id = pl.problem_id
+               WHERE pl.id IS NULL
+               ORDER BY p.score DESC, p.count DESC
+               LIMIT ?""",
+            (limit,)).fetchall()]
+
+
+def get_processed_feedback_ids() -> set:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT feedback_id FROM problem_quotes WHERE feedback_id IS NOT NULL"
+        ).fetchall()
+        return {r["feedback_id"] for r in rows}
+
+
+def get_unprocessed_feedback(limit: int = 500) -> list:
+    processed_ids = get_processed_feedback_ids()
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM feedback ORDER BY collected_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows if r["id"] not in processed_ids]
 
 
 # Initialize on import
