@@ -102,6 +102,7 @@ test_get("GET /api/data/tables", "/api/data/tables", expect_key="primary")
 test_get("GET /api/sentiment/summary", "/api/sentiment/summary")
 test_get("GET /api/sentiment/feed", "/api/sentiment/feed", expect_type=list)
 test_get("GET /api/sentiment/topics", "/api/sentiment/topics", expect_type=list)
+test_get("GET /api/sentiment/trends", "/api/sentiment/trends")
 
 # Features
 test_get("GET /api/features/experiments", "/api/features/experiments", expect_type=list)
@@ -121,6 +122,21 @@ test_get("GET /api/strategy/changelog", "/api/strategy/changelog", expect_type=l
 # Search
 test_get("GET /api/search/?q=linear", "/api/search/?q=linear", expect_key="sources")
 test_get("GET /api/search/memory/stats", "/api/search/memory/stats")
+
+# QA
+test_get("GET /api/qa/status", "/api/qa/status", expect_key="overall")
+test_get("GET /api/qa/history", "/api/qa/history", expect_key="checks")
+test_get("GET /api/qa/drift", "/api/qa/drift", expect_key="drifting_metrics")
+
+# Monitor
+test_get("GET /api/monitor/health", "/api/monitor/health", expect_key="status")
+test_get("GET /api/monitor/sources", "/api/monitor/sources", expect_type=list)
+test_get("GET /api/monitor/log", "/api/monitor/log", expect_type=list)
+
+# Knowledge
+test_get("GET /api/knowledge/reviews", "/api/knowledge/reviews", expect_type=list)
+test_get("GET /api/knowledge/ideas", "/api/knowledge/ideas", expect_type=list)
+test_get("GET /api/knowledge/insights", "/api/knowledge/insights", expect_type=list)
 
 
 # ============================================================
@@ -390,15 +406,24 @@ test_post("POST /api/strategy/changelog",
      "impact": "Updates competitive positioning analysis",
      "evidence": "Manual count + browser scrape", "tags": ["channels", "competitive"]})
 
-# Strategy: generate-prd (requires OPENAI_API_KEY — test accepts 200 or 500)
-prd_result = test_post("POST /api/strategy/generate-prd",
-    "/api/strategy/generate-prd",
-    {"topic": "EPG Navigation Redesign", "context": "Focus on reducing clicks to switch channels"})
-# If OPENAI_API_KEY is set, we get a PRD back; otherwise 500 is expected
-if prd_result and "prd_markdown" in prd_result:
-    report("PRD has markdown content", len(prd_result["prd_markdown"]) > 50,
-           f"length={len(prd_result['prd_markdown'])}")
-    report("PRD has id", "id" in prd_result, f"id={prd_result.get('id')}")
+# Strategy: generate-prd (requires OPENAI_API_KEY — 200 with key, 500 without)
+try:
+    r = requests.post(f"{BASE}/api/strategy/generate-prd",
+        json={"topic": "EPG Navigation Redesign", "context": "Focus on reducing clicks to switch channels"},
+        timeout=60)
+    if r.status_code == 200:
+        prd_result = r.json()
+        report("POST /api/strategy/generate-prd", True, f"status=200")
+        report("PRD has markdown content", len(prd_result.get("prd_markdown", "")) > 50,
+               f"length={len(prd_result.get('prd_markdown', ''))}")
+        report("PRD has id", "id" in prd_result, f"id={prd_result.get('id')}")
+    elif r.status_code == 500:
+        report("POST /api/strategy/generate-prd (no OpenAI key)", True,
+               "500 expected without OPENAI_API_KEY")
+    else:
+        report("POST /api/strategy/generate-prd", False, f"unexpected status={r.status_code}")
+except Exception as e:
+    report("POST /api/strategy/generate-prd", False, str(e))
 
 # Strategy: PRD CRUD endpoints
 test_get("GET /api/strategy/prds", "/api/strategy/prds", expect_type=list)
@@ -433,13 +458,13 @@ test_post("POST /api/sentiment/feedback (single)",
 
 
 # ============================================================
-# PHASE 6: Test Sprout Social collection endpoint
+# PHASE 6: Test Sprout Social ingest + trigger endpoints
 # ============================================================
 print("\n" + "=" * 60)
-print("PHASE 6: Testing Sprout Social collection endpoint")
+print("PHASE 6: Testing Sprout Social endpoints")
 print("=" * 60)
 
-# POST /api/sentiment/collect/sprout — basic collection
+# POST /api/sentiment/collect/sprout/ingest — data ingestion (no API key needed)
 sprout_payload = {
     "messages": [
         {"network": "twitter", "text": "Tubi's live channels are surprisingly good for free TV!",
@@ -465,35 +490,43 @@ sprout_payload = {
     "date_range": "2026-02-01 to 2026-02-15",
 }
 
-sprout_result = test_post("POST /api/sentiment/collect/sprout (3 messages)",
-    "/api/sentiment/collect/sprout",
+sprout_result = test_post("POST /api/sentiment/collect/sprout/ingest (3 messages)",
+    "/api/sentiment/collect/sprout/ingest",
     sprout_payload,
     expect_key="count")
 if sprout_result:
-    report("Sprout collect count = 3", sprout_result.get("count") == 3,
+    report("Sprout ingest count = 3", sprout_result.get("count") == 3,
            f"expected 3, got {sprout_result.get('count')}")
-    report("Sprout collect returns ids", len(sprout_result.get("ids", [])) == 3,
+    report("Sprout ingest returns ids", len(sprout_result.get("ids", [])) == 3,
            f"ids={sprout_result.get('ids')}")
-    report("Sprout collect returns topic", sprout_result.get("topic") == "Tubi Linear TV Mentions",
+    report("Sprout ingest returns topic", sprout_result.get("topic") == "Tubi Linear TV Mentions",
            f"topic={sprout_result.get('topic')}")
 
-# POST /api/sentiment/collect/sprout — empty batch
-empty_sprout = test_post("POST /api/sentiment/collect/sprout (empty batch)",
-    "/api/sentiment/collect/sprout",
+# POST /api/sentiment/collect/sprout/ingest — empty batch
+empty_sprout = test_post("POST /api/sentiment/collect/sprout/ingest (empty batch)",
+    "/api/sentiment/collect/sprout/ingest",
     {"messages": []},
     expect_key="count")
 if empty_sprout:
     report("Sprout empty batch count = 0", empty_sprout.get("count") == 0,
            f"count={empty_sprout.get('count')}")
 
-# POST /api/sentiment/collect/sprout — single message, minimal fields
-minimal_sprout = test_post("POST /api/sentiment/collect/sprout (minimal fields)",
-    "/api/sentiment/collect/sprout",
+# POST /api/sentiment/collect/sprout/ingest — single message, minimal fields
+minimal_sprout = test_post("POST /api/sentiment/collect/sprout/ingest (minimal fields)",
+    "/api/sentiment/collect/sprout/ingest",
     {"messages": [{"text": "Tubi linear is neat"}]},
     expect_key="count")
 if minimal_sprout:
     report("Sprout minimal msg count = 1", minimal_sprout.get("count") == 1,
            f"count={minimal_sprout.get('count')}")
+
+# POST /api/sentiment/collect/sprout — API trigger (requires API key, expect graceful error)
+trigger_result = test_post("POST /api/sentiment/collect/sprout (trigger, no API key)",
+    "/api/sentiment/collect/sprout",
+    {})
+if trigger_result:
+    report("Sprout trigger returns status", "status" in trigger_result,
+           f"keys={list(trigger_result.keys())}")
 
 # Verify sprout data appears in sentiment feed
 sprout_feed = test_get("GET /api/sentiment/feed?source=sprout:twitter",
@@ -748,6 +781,84 @@ try:
         report("GET digest unexpected status", False, f"status={r.status_code}")
 except Exception as e:
     report("GET digest", False, str(e))
+
+
+# ============================================================
+# PHASE 10: Test query parameter filters and edge cases
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 10: Testing query parameter filters and edge cases")
+print("=" * 60)
+
+# Sentiment feed with source filter
+test_get("GET /api/sentiment/feed?source=reddit",
+    "/api/sentiment/feed?source=reddit", expect_type=list)
+
+# Sentiment feed with sentiment filter
+test_get("GET /api/sentiment/feed?sentiment=negative",
+    "/api/sentiment/feed?sentiment=negative", expect_type=list)
+
+# Sentiment feed with limit
+limited = test_get("GET /api/sentiment/feed?limit=2",
+    "/api/sentiment/feed?limit=2", expect_type=list)
+if limited:
+    report("Feed limit=2 returns <=2", len(limited) <= 2, f"got {len(limited)}")
+
+# Work items with status filter
+test_get("GET /api/strategy/work?status=open",
+    "/api/strategy/work?status=open", expect_type=list)
+
+# Work items with type filter
+test_get("GET /api/strategy/work?type=task",
+    "/api/strategy/work?type=task", expect_type=list)
+
+# Experiments with status filter
+test_get("GET /api/features/experiments?status=running",
+    "/api/features/experiments?status=running", expect_type=list)
+
+# OEM snapshots with platform filter
+test_get("GET /api/oem/snapshots?platform=roku",
+    "/api/oem/snapshots?platform=roku", expect_type=list)
+
+# Learnings with category filter
+test_get("GET /api/strategy/learnings?category=data_issue",
+    "/api/strategy/learnings?category=data_issue", expect_type=list)
+
+# Verifications with status filter
+test_get("GET /api/strategy/verifications?status=mismatch",
+    "/api/strategy/verifications?status=mismatch", expect_type=list)
+
+# Changelog with type filter
+test_get("GET /api/strategy/changelog?type=decision",
+    "/api/strategy/changelog?type=decision", expect_type=list)
+
+# Search with limit
+test_get("GET /api/search/?q=linear&limit=3",
+    "/api/search/?q=linear&limit=3", expect_key="sources")
+
+# Gracenote with status filter
+test_get("GET /api/oem/gracenote?status=mapped",
+    "/api/oem/gracenote?status=mapped", expect_type=list)
+
+
+# ============================================================
+# PHASE 11: Verify non-existent endpoints return 404
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 11: Verifying non-existent endpoint handling")
+print("=" * 60)
+
+def test_404(name, path):
+    """Test that a path returns 404."""
+    try:
+        r = requests.get(f"{BASE}{path}", timeout=10)
+        report(name, r.status_code == 404, f"status={r.status_code}")
+    except Exception as e:
+        report(name, False, str(e))
+
+test_404("GET /api/ask returns 404", "/api/ask")
+test_404("GET /api/insights returns 404", "/api/insights")
+test_404("GET /api/nonexistent returns 404", "/api/nonexistent")
 
 
 # ============================================================
