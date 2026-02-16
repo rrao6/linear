@@ -124,6 +124,36 @@ def _run_query(sql: str, cache_key: str):
         return None
 
 
+def _get_qa_status() -> dict:
+    """Get QA status indicator (green/yellow/red) from latest checks."""
+    try:
+        with db.get_db() as conn:
+            rows = conn.execute("""
+                SELECT qc.metric_name, qc.match, qc.drift_pct, qc.checked_at
+                FROM qa_checks qc
+                INNER JOIN (
+                    SELECT metric_name, MAX(checked_at) AS latest
+                    FROM qa_checks GROUP BY metric_name
+                ) lc ON qc.metric_name = lc.metric_name AND qc.checked_at = lc.latest
+            """).fetchall()
+
+        if not rows:
+            return {"indicator": "unknown", "message": "No QA checks run yet"}
+
+        checks = [dict(r) for r in rows]
+        fail_count = sum(1 for c in checks if not c["match"])
+        last_check = max(c["checked_at"] for c in checks)
+
+        if fail_count == 0:
+            return {"indicator": "green", "message": "All checks passing", "last_check": last_check}
+        elif fail_count <= 1:
+            return {"indicator": "yellow", "message": f"{fail_count} check failing", "last_check": last_check}
+        else:
+            return {"indicator": "red", "message": f"{fail_count} checks failing", "last_check": last_check}
+    except Exception:
+        return {"indicator": "unknown", "message": "QA system error"}
+
+
 def _find_latest_run():
     """Find the most recent scan run with analysis."""
     if not SCANS_DIR.exists():
@@ -243,6 +273,9 @@ def get_overview():
                 "tvt_hours": row.get("tvt_hours"),
             })
 
+    # QA status indicator
+    qa_status = _get_qa_status()
+
     return {
         "kpis": kpis,
         "daily_trend": trend_data,
@@ -260,6 +293,7 @@ def get_overview():
         "experiments": exp_stats,
         "learnings": len(learnings),
         "sentiment": db.get_sentiment_summary(),
+        "qa_status": qa_status,
     }
 
 

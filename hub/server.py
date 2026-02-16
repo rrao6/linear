@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .config import HUB_PORT, HUB_HOST
-from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search
+from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search, qa
 
 app = FastAPI(
     title="Linear Hub",
@@ -41,9 +41,24 @@ app.include_router(features.router)
 app.include_router(oem.router)
 app.include_router(strategy.router)
 app.include_router(search.router)
+app.include_router(qa.router)
 
 # Static files
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.on_event("startup")
+def startup_event():
+    """Start background services on server boot."""
+    from .qa.runner import start_scheduler
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """Stop background services on server shutdown."""
+    from .qa.runner import stop_scheduler
+    stop_scheduler()
 
 
 @app.get("/")
