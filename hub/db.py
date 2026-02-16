@@ -852,5 +852,22 @@ def get_ai_insights(type: str = None, limit: int = 20) -> list:
         return rows
 
 
+# --- Ask (NL Query) ---
+
+def log_ask(question: str, sql: str, error: str = "", elapsed_sec: float = 0.0,
+            rows: int = 0, summary: str = "", results: list = None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO query_history (sql_text, query_name, row_count, elapsed_sec, error, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (sql, question, rows, elapsed_sec, error, now_iso()),
+        )
+        return cur.lastrowid
+
+
+def get_ask_history(limit: int = 50) -> list:
+    return get_query_history(limit=limit)
+
+
 # Initialize on import
 init_db()
