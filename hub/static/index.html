@@ -65,6 +65,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Ar
 .tag-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
 .tag-purple { background: rgba(188, 140, 255, 0.15); color: var(--purple); }
 .tag-gray { background: var(--bg3); color: var(--text2); }
+.tag-cyan { background: rgba(86, 212, 221, 0.15); color: var(--cyan); }
 
 .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.15s; }
 .btn:hover { background: var(--bg4); border-color: var(--text3); }
@@ -106,7 +107,7 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 /* Modals */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
 .modal-overlay.show { display: flex; }
-.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto; padding: 24px; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 700px; max-width: 90vw; max-height: 85vh; overflow-y: auto; padding: 24px; }
 .modal h3 { margin-bottom: 16px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
@@ -411,10 +412,11 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 
     <!-- WORK QUEUE PAGE -->
     <div class="page" id="page-work">
-      <div class="topbar-actions" style="margin-bottom:16px">
+      <div class="topbar-actions" style="margin-bottom:16px;flex-wrap:wrap;display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary" onclick="showAddWork()">Add Work Item</button>
+        <button class="btn" onclick="showGeneratePRD()">Generate PRD</button>
         <select id="work-filter" onchange="loadWork()" style="width:auto">
-          <option value="">All</option>
+          <option value="">All Status</option>
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
           <option value="blocked">Blocked</option>
@@ -428,30 +430,40 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
           <option value="investigation">Investigations</option>
           <option value="plan">Plans</option>
         </select>
+        <select id="work-sort" onchange="loadWork()" style="width:auto">
+          <option value="priority">Sort: Priority</option>
+          <option value="newest">Sort: Newest</option>
+          <option value="oldest">Sort: Oldest</option>
+        </select>
       </div>
       <div class="grid g4" id="work-stats-cards"></div>
-      <div class="card" id="work-list" style="max-height:600px;overflow-y:auto"></div>
+      <div class="card">
+        <div class="table-wrap" id="work-table"></div>
+      </div>
+      <div class="section-title" style="margin-top:24px">Generated PRDs <span class="count" id="prd-count"></span></div>
+      <div class="card" id="prd-list"></div>
     </div>
 
     <!-- LEARNINGS PAGE -->
     <div class="page" id="page-learnings">
-      <div class="topbar-actions" style="margin-bottom:16px">
+      <div class="topbar-actions" style="margin-bottom:16px;display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary" onclick="showAddLearning()">Add Learning</button>
         <select id="learning-filter" onchange="loadLearnings()" style="width:auto">
-          <option value="">All</option>
+          <option value="">All Categories</option>
           <option value="data_issue">Data Issues</option>
           <option value="query_gotcha">Query Gotchas</option>
           <option value="metric_verified">Verified Metrics</option>
           <option value="platform_behavior">Platform Behavior</option>
           <option value="process">Process</option>
         </select>
+        <input type="text" id="learning-search" placeholder="Search learnings..." style="width:220px" oninput="filterLearningsLocal()">
       </div>
-      <div class="card" id="learnings-list" style="max-height:600px;overflow-y:auto"></div>
+      <div id="learnings-grouped"></div>
     </div>
 
     <!-- CHANGELOG PAGE -->
     <div class="page" id="page-changelog">
-      <div class="topbar-actions" style="margin-bottom:16px">
+      <div class="topbar-actions" style="margin-bottom:16px;display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary" onclick="showAddChange()">Add Entry</button>
         <select id="changelog-filter" onchange="loadChangelog()" style="width:auto">
           <option value="">All</option>
@@ -1030,9 +1042,13 @@ async function loadVerifications() {
     ].join('');
 
     document.getElementById('verifications-table').innerHTML = data.length ?
-      `<table><thead><tr><th>Metric</th><th>Expected</th><th>Actual</th><th>Source</th><th>Status</th></tr></thead><tbody>${data.map(v =>
-        `<tr><td>${v.metric_name}</td><td>${v.expected_value}</td><td>${v.actual_value}</td><td style="font-size:11px">${v.dashboard_source}</td><td>${statusTag(v.match_status)}</td></tr>`
-      ).join('')}</tbody></table>` : emptyState('&#10003;', 'No verifications yet', 'Add data verification checks to track metric accuracy', '<button class="btn btn-primary btn-sm" onclick="showAddVerification()">Add Verification</button>');
+      `<table><thead><tr><th>Metric</th><th>Our Value</th><th>Source Value</th><th>Source</th><th style="text-align:center">Match</th><th>Notes</th></tr></thead><tbody>${data.map(v => {
+        const matchIcon = v.match_status === 'match' ? '<span style="color:var(--green);font-size:18px" title="Match">&#10003;</span>'
+          : v.match_status === 'mismatch' ? '<span style="color:var(--red);font-size:18px" title="Mismatch">&#10007;</span>'
+          : v.match_status === 'investigating' ? '<span style="color:var(--orange);font-size:14px" title="Investigating">&#8230;</span>'
+          : '<span style="color:var(--text3);font-size:14px" title="Pending">&#8212;</span>';
+        return `<tr><td><strong>${escapeHtml(v.metric_name)}</strong></td><td>${escapeHtml(v.actual_value)}</td><td>${escapeHtml(v.expected_value)}</td><td style="font-size:11px">${escapeHtml(v.dashboard_source)}</td><td style="text-align:center">${matchIcon}</td><td style="font-size:11px;color:var(--text2);max-width:200px">${escapeHtml(v.notes || '')}</td></tr>`;
+      }).join('')}</tbody></table>` : emptyState('&#10003;', 'No verifications yet', 'Add data verification checks to track metric accuracy', '<button class="btn btn-primary btn-sm" onclick="showAddVerification()">Add Verification</button>');
   } catch (err) {
     // Error toast already shown
   }
@@ -1228,9 +1244,18 @@ async function submitOEM() {
 }
 
 // --- Work Queue ---
+let _workItems = []; // cached for sorting
+
+function typeTag(type) {
+  const colors = { task: 'blue', prd: 'purple', investigation: 'orange', change: 'green', plan: 'cyan' };
+  const c = colors[type] || 'gray';
+  const style = c === 'cyan' ? 'background:rgba(86,212,221,0.15);color:var(--cyan)' : '';
+  return `<span class="tag tag-${c}" ${style ? `style="${style}"` : ''}>${type}</span>`;
+}
+
 async function loadWork() {
   showLoading('work-stats-cards');
-  showLoading('work-list');
+  showLoading('work-table');
 
   try {
     const status = document.getElementById('work-filter')?.value || '';
@@ -1239,6 +1264,18 @@ async function loadWork() {
     if (status) params.set('status', status);
     if (type) params.set('type', type);
     const items = await api('/api/strategy/work?' + params);
+    _workItems = items;
+
+    // Sort
+    const sort = document.getElementById('work-sort')?.value || 'priority';
+    const prioOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    if (sort === 'priority') {
+      items.sort((a, b) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9));
+    } else if (sort === 'newest') {
+      items.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    } else if (sort === 'oldest') {
+      items.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    }
 
     const stats = { open: 0, in_progress: 0, blocked: 0, done: 0 };
     items.forEach(w => { if (stats[w.status] !== undefined) stats[w.status]++; });
@@ -1250,27 +1287,97 @@ async function loadWork() {
       `<div class="card card-sm"><h3>Done</h3><div class="value" style="color:var(--green)">${stats.done}</div></div>`,
     ].join('');
 
-    document.getElementById('work-list').innerHTML = items.length ? items.map(w => `
-      <div class="list-item" data-work-id="${w.id}">
+    document.getElementById('work-table').innerHTML = items.length ?
+      `<table><thead><tr><th>Type</th><th>Title</th><th>Priority</th><th>Status</th><th>Owner</th><th>Tags</th><th></th></tr></thead><tbody>${items.map(w => {
+        const tags = Array.isArray(w.tags) ? w.tags : [];
+        return `<tr data-work-id="${w.id}">
+          <td>${typeTag(w.type)}</td>
+          <td><strong>${escapeHtml(w.title)}</strong>${w.description ? `<div style="font-size:11px;color:var(--text3);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(w.description)}</div>` : ''}</td>
+          <td>${priorityTag(w.priority)}</td>
+          <td><select class="status-select" onchange="updateWorkStatus(${w.id}, this.value)" style="font-size:12px;padding:2px 4px">
+            ${['open','in_progress','blocked','done'].map(s => `<option value="${s}" ${w.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select></td>
+          <td style="font-size:12px;color:var(--text2)">${escapeHtml(w.owner || '')}</td>
+          <td>${tags.map(t => `<span class="tag tag-gray" style="margin-right:4px">${escapeHtml(t)}</span>`).join('')}</td>
+          <td><div class="work-actions" style="opacity:1">
+            <button class="btn-icon" onclick="showEditWork(${w.id})" title="Edit">&#9998;</button>
+            <button class="btn-icon" onclick="deleteWorkItem(${w.id})" title="Delete" style="color:var(--red)">&#10007;</button>
+          </div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : emptyState('&#9744;', 'No work items', 'Create tasks, PRDs, investigations, and plans to track work', '<button class="btn btn-primary btn-sm" onclick="showAddWork()">Add Work Item</button>');
+
+    // Load PRDs
+    loadPRDs();
+  } catch (err) {}
+}
+
+async function loadPRDs() {
+  try {
+    const prds = await api('/api/strategy/prds');
+    document.getElementById('prd-count').textContent = `(${prds.length})`;
+    document.getElementById('prd-list').innerHTML = prds.length ? prds.map(p => `
+      <div class="list-item">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="list-item-title">${escapeHtml(w.title)}</div>
+          <div class="list-item-title">${escapeHtml(p.topic)}</div>
           <div style="display:flex;gap:6px;align-items:center">
-            ${priorityTag(w.priority)}
-            <select class="status-select" onchange="updateWorkStatus(${w.id}, this.value)" title="Change status">
-              ${['open','in_progress','blocked','done'].map(s => `<option value="${s}" ${w.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-            </select>
-            <span class="tag tag-gray">${w.type}</span>
-            <div class="work-actions">
-              ${w.status !== 'done' ? `<button class="btn-icon btn-done" onclick="updateWorkStatus(${w.id}, 'done')" title="Mark done">&#10003;</button>` : ''}
-              <button class="btn-icon" onclick="showEditWork(${w.id})" title="Edit">&#9998;</button>
-            </div>
+            ${statusTag(p.status)}
+            <button class="btn btn-sm" onclick="viewPRD(${p.id})">View</button>
           </div>
         </div>
-        ${w.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(w.description).substring(0, 150)}</div>` : ''}
-        <div class="list-item-meta" style="margin-top:4px">${w.owner ? `<span>Owner: ${w.owner}</span>` : ''}<span>${new Date(w.created_at).toLocaleDateString()}</span></div>
+        <div class="list-item-meta"><span>${new Date(p.created_at).toLocaleDateString()}</span></div>
       </div>
-    `).join('') : emptyState('&#9744;', 'No work items', 'Create tasks, PRDs, investigations, and plans to track work', '<button class="btn btn-primary btn-sm" onclick="showAddWork()">Add Work Item</button>');
+    `).join('') : '<div class="empty" style="padding:16px">No PRDs generated yet. Click "Generate PRD" above.</div>';
+  } catch (err) {
+    document.getElementById('prd-list').innerHTML = '<div class="empty" style="padding:16px">Failed to load PRDs</div>';
+  }
+}
+
+async function viewPRD(id) {
+  try {
+    const prd = await api(`/api/strategy/prds/${id}`);
+    showModal(`PRD: ${escapeHtml(prd.topic)}`, `
+      <div style="display:flex;gap:8px;margin-bottom:12px">${statusTag(prd.status)}<span style="font-size:12px;color:var(--text3)">${new Date(prd.created_at).toLocaleDateString()}</span></div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;max-height:60vh;overflow-y:auto;font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(prd.content_md)}</div>
+    `);
   } catch (err) {}
+}
+
+function showGeneratePRD() {
+  showModal('Generate PRD', `
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Uses AI to generate a data-driven PRD grounded in hub data (sentiment, metrics, competitive intel).</p>
+    <div class="form-group"><label>Topic</label><input type="text" id="prd-topic" placeholder="e.g., Linear EPG Redesign, Sports Hub Experience"></div>
+    <div class="form-group"><label>Additional Context (optional)</label><textarea id="prd-context" style="min-height:80px" placeholder="Any specific requirements or constraints..."></textarea></div>
+    <button class="btn btn-primary" id="prd-gen-btn" onclick="submitGeneratePRD()">Generate PRD</button>
+    <span id="prd-gen-status" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+  `);
+}
+
+async function submitGeneratePRD() {
+  const topic = document.getElementById('prd-topic').value.trim();
+  if (!topic) { showToast('Topic is required', 'error'); return; }
+  const btn = document.getElementById('prd-gen-btn');
+  const statusEl = document.getElementById('prd-gen-status');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  statusEl.innerHTML = '<span class="spinner"></span> This may take a moment...';
+  try {
+    const result = await api('/api/strategy/generate-prd', {
+      method: 'POST',
+      body: JSON.stringify({ topic, context: document.getElementById('prd-context').value }),
+    });
+    hideModal();
+    showToast('PRD generated successfully', 'success');
+    // Show the generated PRD immediately
+    showModal(`PRD: ${escapeHtml(result.topic)}`, `
+      <div style="display:flex;gap:8px;margin-bottom:12px">${statusTag('draft')}<span style="font-size:12px;color:var(--text3)">Just generated</span></div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;max-height:60vh;overflow-y:auto;font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(result.prd_markdown)}</div>
+    `);
+    loadPRDs();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Generate PRD';
+    statusEl.textContent = 'Generation failed. Check server logs.';
+  }
 }
 
 async function updateWorkStatus(id, newStatus) {
@@ -1279,47 +1386,53 @@ async function updateWorkStatus(id, newStatus) {
       method: 'PUT',
       body: JSON.stringify({ status: newStatus }),
     });
-    showToast(`Work item ${newStatus === 'done' ? 'completed' : 'updated to ' + newStatus}`, 'success');
+    showToast(`Status updated to ${newStatus}`, 'success');
+    loadWork();
+  } catch (err) {}
+}
+
+async function deleteWorkItem(id) {
+  if (!confirm('Delete this work item?')) return;
+  try {
+    await api(`/api/strategy/work/${id}`, { method: 'DELETE' });
+    showToast('Work item deleted', 'success');
     loadWork();
   } catch (err) {}
 }
 
 function showEditWork(id) {
-  // Find the work item in the DOM
-  const el = document.querySelector(`[data-work-id="${id}"]`);
-  if (!el) return;
-  const title = el.querySelector('.list-item-title')?.textContent || '';
+  const item = _workItems.find(w => w.id === id);
+  if (!item) return;
+  const tags = Array.isArray(item.tags) ? item.tags.join(', ') : '';
 
   showModal('Edit Work Item', `
-    <div class="form-group"><label>Title</label><input type="text" id="we-title" value="${escapeHtml(title)}"></div>
+    <div class="form-group"><label>Title</label><input type="text" id="we-title" value="${escapeHtml(item.title)}"></div>
+    <div class="form-group"><label>Description</label><textarea id="we-desc" style="min-height:80px">${escapeHtml(item.description || '')}</textarea></div>
     <div class="form-group"><label>Status</label><select id="we-status">
-      <option value="open">open</option><option value="in_progress">in_progress</option>
-      <option value="blocked">blocked</option><option value="done">done</option>
+      ${['open','in_progress','blocked','done'].map(s => `<option value="${s}" ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}
     </select></div>
     <div class="form-group"><label>Priority</label><select id="we-priority">
-      <option value="medium">medium</option><option value="critical">critical</option>
-      <option value="high">high</option><option value="low">low</option>
+      ${['critical','high','medium','low'].map(p => `<option value="${p}" ${item.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
     </select></div>
-    <div class="form-group"><label>Owner</label><input type="text" id="we-owner"></div>
+    <div class="form-group"><label>Owner</label><input type="text" id="we-owner" value="${escapeHtml(item.owner || '')}"></div>
+    <div class="form-group"><label>Tags (comma-separated)</label><input type="text" id="we-tags" value="${escapeHtml(tags)}"></div>
     <button class="btn btn-primary" onclick="submitEditWork(${id})">Update</button>
   `);
 }
 
 async function submitEditWork(id) {
   try {
-    const updates = {};
-    const title = document.getElementById('we-title').value;
-    const status = document.getElementById('we-status').value;
-    const priority = document.getElementById('we-priority').value;
-    const owner = document.getElementById('we-owner').value;
-    if (title) updates.title = title;
-    if (status) updates.status = status;
-    if (priority) updates.priority = priority;
-    if (owner) updates.owner = owner;
-
+    const tags = document.getElementById('we-tags').value.split(',').map(t => t.trim()).filter(Boolean);
     await api(`/api/strategy/work/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates),
+      body: JSON.stringify({
+        title: document.getElementById('we-title').value,
+        description: document.getElementById('we-desc').value,
+        status: document.getElementById('we-status').value,
+        priority: document.getElementById('we-priority').value,
+        owner: document.getElementById('we-owner').value,
+        tags: tags,
+      }),
     });
     hideModal();
     showToast('Work item updated', 'success');
@@ -1334,6 +1447,7 @@ function showAddWork() {
     <div class="form-group"><label>Description</label><textarea id="w-desc"></textarea></div>
     <div class="form-group"><label>Priority</label><select id="w-priority"><option>medium</option><option>critical</option><option>high</option><option>low</option></select></div>
     <div class="form-group"><label>Owner</label><input type="text" id="w-owner"></div>
+    <div class="form-group"><label>Tags (comma-separated)</label><input type="text" id="w-tags" placeholder="linear, epg, discovery"></div>
     <button class="btn btn-primary" onclick="submitWork()">Save</button>
   `);
 }
@@ -1342,12 +1456,14 @@ async function submitWork() {
   try {
     const title = document.getElementById('w-title').value.trim();
     if (!title) { showToast('Title is required', 'error'); return; }
+    const tags = document.getElementById('w-tags').value.split(',').map(t => t.trim()).filter(Boolean);
     await api('/api/strategy/work', { method: 'POST', body: JSON.stringify({
       type: document.getElementById('w-type').value,
       title: title,
       description: document.getElementById('w-desc').value,
       priority: document.getElementById('w-priority').value,
       owner: document.getElementById('w-owner').value,
+      tags: tags,
     })});
     hideModal();
     showToast('Work item created', 'success');
@@ -1356,25 +1472,82 @@ async function submitWork() {
 }
 
 // --- Learnings ---
+let _learningsAll = []; // cached for client-side search
+
+const categoryLabels = {
+  data_issue: 'Data Issues',
+  query_gotcha: 'Query Gotchas',
+  metric_verified: 'Verified Metrics',
+  platform_behavior: 'Platform Behavior',
+  process: 'Process',
+};
+const categoryColors = {
+  data_issue: 'red',
+  query_gotcha: 'orange',
+  metric_verified: 'green',
+  platform_behavior: 'blue',
+  process: 'purple',
+};
+
 async function loadLearnings() {
-  showLoading('learnings-list');
+  showLoading('learnings-grouped');
 
   try {
     const cat = document.getElementById('learning-filter')?.value || '';
     const params = cat ? `?category=${cat}` : '';
     const items = await api('/api/strategy/learnings' + params);
-
-    document.getElementById('learnings-list').innerHTML = items.length ? items.map(l => `
-      <div class="list-item">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="list-item-title">${escapeHtml(l.title)}</div>
-          <div style="display:flex;gap:6px"><span class="tag tag-purple">${l.category}</span>${l.verified ? '<span class="tag tag-green">verified</span>' : ''}</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(l.description)}</div>
-        ${l.source ? `<div class="list-item-meta" style="margin-top:4px"><span>Source: ${escapeHtml(l.source)}</span></div>` : ''}
-      </div>
-    `).join('') : emptyState('&#9998;', 'No learnings yet', 'Record data issues, query gotchas, and verified facts', '<button class="btn btn-primary btn-sm" onclick="showAddLearning()">Add Learning</button>');
+    _learningsAll = items;
+    renderLearnings(items);
   } catch (err) {}
+}
+
+function renderLearnings(items) {
+  if (!items.length) {
+    document.getElementById('learnings-grouped').innerHTML = `<div class="card">${emptyState('&#9998;', 'No learnings yet', 'Record data issues, query gotchas, and verified facts', '<button class="btn btn-primary btn-sm" onclick="showAddLearning()">Add Learning</button>')}</div>`;
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  items.forEach(l => {
+    const cat = l.category || 'uncategorized';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(l);
+  });
+
+  let html = '';
+  for (const [cat, learnings] of Object.entries(groups)) {
+    const color = categoryColors[cat] || 'gray';
+    const label = categoryLabels[cat] || cat;
+    html += `<div style="margin-bottom:20px">
+      <div class="section-title"><span class="tag tag-${color}">${label}</span> <span class="count">(${learnings.length})</span></div>
+      <div class="grid g2">${learnings.map(l => {
+        const tags = Array.isArray(l.tags) ? l.tags : [];
+        return `<div class="card card-sm">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+            <div style="font-weight:500;font-size:13px">${escapeHtml(l.title)}</div>
+            ${l.verified ? '<span class="tag tag-green" style="flex-shrink:0">verified</span>' : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${escapeHtml(l.description).substring(0, 200)}${l.description.length > 200 ? '...' : ''}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>${tags.map(t => `<span class="tag tag-gray" style="margin-right:4px;font-size:10px">${escapeHtml(t)}</span>`).join('')}</div>
+            ${l.source ? `<span style="font-size:11px;color:var(--text3)">${escapeHtml(l.source)}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  }
+  document.getElementById('learnings-grouped').innerHTML = html;
+}
+
+function filterLearningsLocal() {
+  const q = (document.getElementById('learning-search')?.value || '').toLowerCase();
+  if (!q) { renderLearnings(_learningsAll); return; }
+  const filtered = _learningsAll.filter(l =>
+    l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q) ||
+    (l.source || '').toLowerCase().includes(q) || l.category.toLowerCase().includes(q)
+  );
+  renderLearnings(filtered);
 }
 
 function showAddLearning() {
@@ -1383,17 +1556,20 @@ function showAddLearning() {
     <div class="form-group"><label>Title</label><input type="text" id="l-title"></div>
     <div class="form-group"><label>Description</label><textarea id="l-desc"></textarea></div>
     <div class="form-group"><label>Source</label><input type="text" id="l-source" placeholder="Where did we learn this?"></div>
+    <div class="form-group"><label>Tags (comma-separated)</label><input type="text" id="l-tags" placeholder="tvt, linear, query"></div>
     <button class="btn btn-primary" onclick="submitLearning()">Save</button>
   `);
 }
 
 async function submitLearning() {
   try {
+    const tags = document.getElementById('l-tags').value.split(',').map(t => t.trim()).filter(Boolean);
     await api('/api/strategy/learnings', { method: 'POST', body: JSON.stringify({
       category: document.getElementById('l-cat').value,
       title: document.getElementById('l-title').value,
       description: document.getElementById('l-desc').value,
       source: document.getElementById('l-source').value,
+      tags: tags,
     })});
     hideModal();
     showToast('Learning recorded', 'success');
