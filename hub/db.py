@@ -274,6 +274,19 @@ CREATE TABLE IF NOT EXISTS problem_links (
     FOREIGN KEY (work_item_id) REFERENCES work_items(id),
     FOREIGN KEY (experiment_id) REFERENCES experiments(id)
 );
+
+-- Feedback enrichments: AI-extracted metadata
+CREATE TABLE IF NOT EXISTS enrichments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feedback_id INTEGER NOT NULL UNIQUE,
+    entities_json TEXT DEFAULT '{}',
+    user_context_json TEXT DEFAULT '{}',
+    product_areas_json TEXT DEFAULT '[]',
+    actionability_json TEXT DEFAULT '{}',
+    competitive_json TEXT DEFAULT 'null',
+    enriched_at TEXT NOT NULL,
+    FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+);
 """
 
 
@@ -769,12 +782,178 @@ def get_event_log(limit: int = 100, event_type: str = None) -> list:
         return [dict(r) for r in conn.execute(query, params).fetchall()]
 
 
+# --- Enrichments ---
+
+def create_enrichment(feedback_id: int, entities: dict, user_context: dict,
+                      product_areas: list, actionability: dict,
+                      competitive_mention=None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT OR REPLACE INTO enrichments
+               (feedback_id, entities_json, user_context_json, product_areas_json,
+                actionability_json, competitive_json, enriched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (feedback_id, json.dumps(entities), json.dumps(user_context),
+             json.dumps(product_areas), json.dumps(actionability),
+             json.dumps(competitive_mention), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_enrichment(feedback_id: int) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM enrichments WHERE feedback_id = ?", (feedback_id,)
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        for col in ("entities_json", "user_context_json", "product_areas_json",
+                     "actionability_json", "competitive_json"):
+            if isinstance(d.get(col), str):
+                d[col] = json.loads(d[col])
+        return d
+
+
+def get_unenriched_feedback_ids(limit: int = 500) -> list:
+    """Return feedback IDs that have no enrichment record."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT f.id FROM feedback f
+               LEFT JOIN enrichments e ON f.id = e.feedback_id
+               WHERE e.id IS NULL
+               ORDER BY f.created_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        return [r["id"] for r in rows]
+
+
+def get_feedback_by_id(feedback_id: int) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM feedback WHERE id = ?", (feedback_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        if isinstance(d.get("topics"), str):
+            d["topics"] = json.loads(d["topics"])
+        if isinstance(d.get("metadata"), str):
+            d["metadata"] = json.loads(d["metadata"])
+        return d
+
+
+def get_feedback_by_product_area(area: str = None, limit: int = 200) -> list:
+    """Get feedback grouped by product area from enrichments."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT f.*, e.product_areas_json, e.entities_json, e.actionability_json,
+                      e.user_context_json, e.competitive_json
+               FROM feedback f
+               JOIN enrichments e ON f.id = e.feedback_id
+               ORDER BY f.collected_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            areas = json.loads(d.get("product_areas_json", "[]"))
+            if area and area not in areas:
+                continue
+            for col in ("topics", "metadata"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            for col in ("product_areas_json", "entities_json", "actionability_json",
+                         "user_context_json", "competitive_json"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            results.append(d)
+        return results
+
+
+def get_feedback_by_competitor(limit: int = 200) -> list:
+    """Get all feedback with competitive mentions."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT f.*, e.competitive_json, e.entities_json, e.actionability_json,
+                      e.product_areas_json
+               FROM feedback f
+               JOIN enrichments e ON f.id = e.feedback_id
+               WHERE e.competitive_json IS NOT NULL AND e.competitive_json != 'null'
+               ORDER BY f.collected_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            for col in ("topics", "metadata"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            for col in ("competitive_json", "entities_json", "actionability_json",
+                         "product_areas_json"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            results.append(d)
+        return results
+
+
+def get_churn_risks(limit: int = 100) -> list:
+    """Get feedback flagged as churn risk, most recent first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT f.*, e.actionability_json, e.entities_json, e.product_areas_json,
+                      e.user_context_json, e.competitive_json
+               FROM feedback f
+               JOIN enrichments e ON f.id = e.feedback_id
+               WHERE json_extract(e.actionability_json, '$.is_churn_risk') = 1
+               ORDER BY f.collected_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            for col in ("topics", "metadata"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            for col in ("actionability_json", "entities_json", "product_areas_json",
+                         "user_context_json", "competitive_json"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            results.append(d)
+        return results
+
+
+def get_feature_requests(limit: int = 100) -> list:
+    """Get feedback flagged as feature requests."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT f.*, e.actionability_json, e.entities_json, e.product_areas_json,
+                      e.user_context_json
+               FROM feedback f
+               JOIN enrichments e ON f.id = e.feedback_id
+               WHERE json_extract(e.actionability_json, '$.is_feature_request') = 1
+               ORDER BY f.collected_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            for col in ("topics", "metadata"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            for col in ("actionability_json", "entities_json", "product_areas_json",
+                         "user_context_json"):
+                if isinstance(d.get(col), str):
+                    d[col] = json.loads(d[col])
+            results.append(d)
+        return results
+
+
 def get_table_row_counts() -> dict:
     """Return row counts for all tables."""
     tables = ["work_items", "learnings", "data_verifications", "feedback",
               "experiments", "oem_snapshots", "gracenote_mappings", "query_history",
               "change_log", "kpi_cache", "data_sources", "event_log",
-              "prd_reviews", "feature_ideas", "insights"]
+              "prd_reviews", "feature_ideas", "insights", "enrichments",
+              "ai_insights", "problems", "problem_quotes", "problem_links"]
     counts = {}
     with get_db() as conn:
         for t in tables:
