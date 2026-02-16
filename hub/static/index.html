@@ -208,6 +208,11 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
     <div class="nav-section">Overview</div>
     <a class="nav-item active" data-page="dashboard"><span class="icon">&#9632;</span> Dashboard</a>
 
+    <div class="nav-section">AI-Powered</div>
+    <a class="nav-item" data-page="problems"><span class="icon">&#9888;</span> Problems</a>
+    <a class="nav-item" data-page="ask"><span class="icon">&#10067;</span> Ask</a>
+    <a class="nav-item" data-page="insights"><span class="icon">&#9733;</span> Insights</a>
+
     <div class="nav-section">Intelligence</div>
     <a class="nav-item" data-page="intel"><span class="icon">&#9673;</span> Intel Monitor</a>
     <a class="nav-item" data-page="sentiment"><span class="icon">&#9829;</span> Sentiment</a>
@@ -499,6 +504,72 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
       <div id="search-results"></div>
     </div>
 
+    <!-- PROBLEMS PAGE -->
+    <div class="page" id="page-problems">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="detectProblems()">Detect Problems</button>
+        <select id="problems-view" onchange="loadProblems()" style="width:auto">
+          <option value="ranked">Ranked</option>
+          <option value="by-area">By Area</option>
+          <option value="unaddressed">Unaddressed</option>
+        </select>
+        <select id="problems-severity" onchange="loadProblems()" style="width:auto">
+          <option value="">All Severities</option>
+          <option value="blocking">Blocking</option>
+          <option value="degraded">Degraded</option>
+          <option value="annoying">Annoying</option>
+          <option value="cosmetic">Cosmetic</option>
+        </select>
+      </div>
+      <div class="grid g4" id="problems-stats"></div>
+      <div id="problems-list"></div>
+    </div>
+
+    <!-- ASK PAGE -->
+    <div class="page" id="page-ask">
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="color:var(--text);margin-bottom:8px">Ask a Question</h3>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Ask in plain English. AI generates SQL, executes against Databricks, and summarizes results.</p>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="ask-input" placeholder="e.g., What are the top 10 linear channels by viewing hours this month?" onkeydown="if(event.key==='Enter')submitAsk()">
+          <button class="btn btn-primary" onclick="submitAsk()">Ask</button>
+        </div>
+      </div>
+      <div id="ask-result" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="color:var(--text);margin-bottom:8px">Summary</h3>
+          <div id="ask-summary" style="font-size:13px"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="color:var(--text);margin-bottom:8px">Generated SQL</h3>
+          <pre id="ask-sql" style="font-size:12px;color:var(--green);background:var(--bg);padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap"></pre>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="color:var(--text);margin-bottom:8px">Results <span id="ask-row-count" class="count"></span></h3>
+          <div class="table-wrap" id="ask-results-table"></div>
+        </div>
+      </div>
+      <div id="ask-loading" style="display:none">
+        <div class="loading-overlay"><span class="spinner spinner-lg"></span> Generating SQL and querying Databricks...</div>
+      </div>
+      <div class="section-title" style="margin-top:16px">Query History</div>
+      <div class="card" id="ask-history"></div>
+    </div>
+
+    <!-- INSIGHTS PAGE -->
+    <div class="page" id="page-insights">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="triggerInsightAnalysis()">Analyze Now</button>
+        <button class="btn" onclick="loadInsights()">Refresh</button>
+      </div>
+      <div class="section-title">Weekly Executive Brief</div>
+      <div class="card" id="insights-brief" style="margin-bottom:16px"></div>
+      <div class="section-title">Latest Insights</div>
+      <div class="grid g2" id="insights-cards"></div>
+      <div class="section-title" style="margin-top:16px">Insight History</div>
+      <div class="card" id="insights-history"></div>
+    </div>
+
   </div>
 </div>
 
@@ -613,6 +684,9 @@ function loadPageData(page) {
     changelog: loadChangelog,
     monitor: loadMonitor,
     search: loadSearchPage,
+    problems: loadProblems,
+    ask: loadAskPage,
+    insights: loadInsights,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -1542,6 +1616,283 @@ async function runSearch() {
   } catch (err) {
     document.getElementById('search-results').innerHTML = emptyState('&#9888;', 'Search failed', 'Check server connection and try again');
   }
+}
+
+// --- Problems ---
+async function loadProblems() {
+  showLoading('problems-stats');
+  showLoading('problems-list');
+
+  const view = document.getElementById('problems-view')?.value || 'ranked';
+  const severity = document.getElementById('problems-severity')?.value || '';
+
+  try {
+    let endpoint = '/api/problems';
+    if (view === 'by-area') endpoint = '/api/problems/by-area';
+    else if (view === 'unaddressed') endpoint = '/api/problems/unaddressed';
+
+    const params = new URLSearchParams();
+    if (severity && view === 'ranked') params.set('severity', severity);
+    const url = endpoint + (params.toString() ? '?' + params : '');
+
+    const data = await api(url);
+
+    if (view === 'by-area') {
+      renderProblemsByArea(data);
+    } else {
+      renderProblemsRanked(Array.isArray(data) ? data : []);
+    }
+  } catch (err) {
+    document.getElementById('problems-list').innerHTML = emptyState('&#9888;', 'Failed to load problems', 'Check server connection', '<button class="btn btn-sm" onclick="loadProblems()">Retry</button>');
+  }
+}
+
+function severityTag(sev) {
+  const colors = { blocking: 'red', degraded: 'orange', annoying: 'blue', cosmetic: 'gray' };
+  return `<span class="tag tag-${colors[sev] || 'gray'}">${sev}</span>`;
+}
+
+function severityBorder(sev) {
+  const colors = { blocking: 'var(--red)', degraded: 'var(--orange)', annoying: 'var(--accent)', cosmetic: 'var(--text3)' };
+  return colors[sev] || 'var(--border)';
+}
+
+function renderProblemsRanked(problems) {
+  const stats = { blocking: 0, degraded: 0, annoying: 0, cosmetic: 0 };
+  problems.forEach(p => { if (stats[p.severity] !== undefined) stats[p.severity]++; });
+  document.getElementById('problems-stats').innerHTML = [
+    `<div class="card card-sm"><h3>Total Problems</h3><div class="value">${problems.length}</div></div>`,
+    `<div class="card card-sm"><h3>Blocking</h3><div class="value" style="color:var(--red)">${stats.blocking}</div></div>`,
+    `<div class="card card-sm"><h3>Degraded</h3><div class="value" style="color:var(--orange)">${stats.degraded}</div></div>`,
+    `<div class="card card-sm"><h3>Annoying / Cosmetic</h3><div class="value">${stats.annoying + stats.cosmetic}</div></div>`,
+  ].join('');
+
+  if (!problems.length) {
+    document.getElementById('problems-list').innerHTML = emptyState('&#9888;', 'No problems detected', 'Click "Detect Problems" to analyze feedback for problem patterns', '<button class="btn btn-primary btn-sm" onclick="detectProblems()">Detect Problems</button>');
+    return;
+  }
+
+  document.getElementById('problems-list').innerHTML = problems.map(p => `
+    <div class="card" style="margin-bottom:12px;border-left:3px solid ${severityBorder(p.severity)}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600;font-size:14px">${escapeHtml(p.title)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${severityTag(p.severity)}
+          <span class="tag tag-gray">${p.count || 0} reports</span>
+          ${p.area ? `<span class="tag tag-purple">${escapeHtml(p.area)}</span>` : ''}
+          ${p.trend ? `<span class="tag tag-${p.trend === 'rising' ? 'red' : p.trend === 'falling' ? 'green' : 'gray'}">${p.trend}</span>` : ''}
+        </div>
+      </div>
+      ${p.description ? `<div style="font-size:13px;color:var(--text2);margin-bottom:8px">${escapeHtml(p.description)}</div>` : ''}
+      ${p.platforms_json && Array.isArray(p.platforms_json) ? `<div style="margin-bottom:8px">${p.platforms_json.map(pl => `<span class="tag tag-gray" style="margin-right:4px">${escapeHtml(pl)}</span>`).join('')}</div>` : ''}
+      ${(p.quotes || []).length ? `<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">${p.quotes.map(q => `<div style="font-size:12px;color:var(--text3);padding:4px 0;border-left:2px solid var(--border);padding-left:8px;margin-bottom:4px">"${escapeHtml(q.quote_text)}" <span style="color:var(--text3)">&mdash; ${q.source || 'user'}</span></div>`).join('')}</div>` : ''}
+      ${(p.links || []).length ? `<div style="margin-top:8px;font-size:12px;color:var(--accent)">Linked: ${p.links.map(l => l.work_item_id ? `Work Item #${l.work_item_id}` : l.experiment_id ? `Experiment #${l.experiment_id}` : '').filter(Boolean).join(', ')}</div>` : '<div style="margin-top:4px;font-size:11px;color:var(--text3)">No linked work items</div>'}
+    </div>
+  `).join('');
+}
+
+function renderProblemsByArea(areas) {
+  const totalProblems = areas.reduce((sum, a) => sum + a.problems.length, 0);
+  document.getElementById('problems-stats').innerHTML = [
+    `<div class="card card-sm"><h3>Product Areas</h3><div class="value">${areas.length}</div></div>`,
+    `<div class="card card-sm"><h3>Total Problems</h3><div class="value">${totalProblems}</div></div>`,
+    `<div class="card card-sm"><h3>Top Area</h3><div class="value" style="font-size:18px">${areas.length ? escapeHtml(areas[0].area) : 'N/A'}</div></div>`,
+    `<div class="card card-sm"><h3>Worst Severity</h3><div class="value">${areas.length ? severityTag(areas[0].top_severity) : 'N/A'}</div></div>`,
+  ].join('');
+
+  if (!areas.length) {
+    document.getElementById('problems-list').innerHTML = emptyState('&#9888;', 'No problems by area', 'Detect problems first to see area groupings');
+    return;
+  }
+
+  document.getElementById('problems-list').innerHTML = areas.map(a => `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="color:var(--text);font-size:14px">${escapeHtml(a.area)} <span class="count">(${a.problems.length} problems, ${a.total_count} reports)</span></h3>
+        ${severityTag(a.top_severity)}
+      </div>
+      ${a.problems.map(p => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:500">${escapeHtml(p.title)}</span>
+            <div style="display:flex;gap:6px">${severityTag(p.severity)}<span class="tag tag-gray">${p.count || 0}</span></div>
+          </div>
+          ${p.description ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(p.description).substring(0, 120)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+async function detectProblems() {
+  showToast('Detecting problems from feedback...', 'info');
+  try {
+    const r = await api('/api/problems/detect', { method: 'POST' });
+    if (r.status === 'completed') {
+      showToast(`Detection complete: ${r.new_problems} new, ${r.updated_problems} updated`, 'success');
+    } else if (r.status === 'started') {
+      showToast(r.message, 'info');
+    } else {
+      showToast(r.message || 'No unprocessed feedback', 'info');
+    }
+    loadProblems();
+  } catch (err) {}
+}
+
+// --- Ask ---
+function loadAskPage() {
+  loadAskHistory();
+}
+
+async function submitAsk() {
+  const question = document.getElementById('ask-input').value.trim();
+  if (!question) { showToast('Enter a question', 'error'); return; }
+
+  document.getElementById('ask-result').style.display = 'none';
+  document.getElementById('ask-loading').style.display = 'block';
+
+  try {
+    const r = await api('/api/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    });
+
+    document.getElementById('ask-loading').style.display = 'none';
+    document.getElementById('ask-result').style.display = 'block';
+
+    if (r.error) {
+      document.getElementById('ask-summary').innerHTML = `<span style="color:var(--red)">${escapeHtml(r.error)}</span>`;
+      document.getElementById('ask-sql').textContent = r.sql || '';
+      document.getElementById('ask-results-table').innerHTML = '';
+      document.getElementById('ask-row-count').textContent = '';
+      return;
+    }
+
+    document.getElementById('ask-summary').textContent = r.summary || 'No summary available.';
+    document.getElementById('ask-sql').textContent = r.sql || '';
+    document.getElementById('ask-row-count').textContent = `(${r.rows} rows)`;
+
+    if (r.results && r.results.length) {
+      const cols = Object.keys(r.results[0]);
+      document.getElementById('ask-results-table').innerHTML = `
+        <table><thead><tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+        <tbody>${r.results.slice(0, 100).map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>
+      `;
+    } else {
+      document.getElementById('ask-results-table').innerHTML = emptyState('&#9881;', 'No results', 'Query returned 0 rows');
+    }
+
+    loadAskHistory();
+  } catch (err) {
+    document.getElementById('ask-loading').style.display = 'none';
+    document.getElementById('ask-result').style.display = 'block';
+    document.getElementById('ask-summary').innerHTML = `<span style="color:var(--red)">Request failed</span>`;
+    document.getElementById('ask-sql').textContent = '';
+    document.getElementById('ask-results-table').innerHTML = '';
+  }
+}
+
+async function loadAskHistory() {
+  try {
+    const history = await api('/api/ask/history?limit=20');
+    document.getElementById('ask-history').innerHTML = history.length ?
+      history.map(h => `
+        <div class="list-item" style="cursor:pointer" onclick="document.getElementById('ask-input').value='${escapeHtml(h.question).replace(/'/g, "\\'")}'; submitAsk();">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="list-item-title">${escapeHtml(h.question)}</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${h.error ? '<span class="tag tag-red">error</span>' : `<span class="tag tag-green">${h.row_count} rows</span>`}
+              <span style="font-size:11px;color:var(--text3)">${h.elapsed_sec ? h.elapsed_sec + 's' : ''}</span>
+            </div>
+          </div>
+          ${h.summary ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(h.summary).substring(0, 150)}</div>` : ''}
+          <div class="list-item-meta" style="margin-top:4px"><span>${h.created_at ? new Date(h.created_at).toLocaleString() : ''}</span></div>
+        </div>
+      `).join('') : emptyState('&#10067;', 'No queries yet', 'Ask a question above to get started');
+  } catch (err) {
+    document.getElementById('ask-history').innerHTML = emptyState('&#10067;', 'No queries yet', 'Ask a question above to get started');
+  }
+}
+
+// --- Insights ---
+async function loadInsights() {
+  showLoading('insights-brief');
+  showLoading('insights-cards');
+  showLoading('insights-history');
+
+  try {
+    const [latest, brief, history] = await Promise.all([
+      api('/api/insights/latest'),
+      api('/api/insights/brief'),
+      api('/api/insights/history?limit=20'),
+    ]);
+
+    // Brief
+    if (brief.status === 'no_data') {
+      document.getElementById('insights-brief').innerHTML = emptyState('&#9733;', 'No executive brief yet', 'Click "Analyze Now" to generate the first weekly brief', '<button class="btn btn-primary btn-sm" onclick="triggerInsightAnalysis(\'weekly_brief\')">Generate Brief</button>');
+    } else {
+      const content = typeof brief.content === 'string' ? brief.content : JSON.stringify(brief.content, null, 2);
+      document.getElementById('insights-brief').innerHTML = `
+        <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${escapeHtml(content)}</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3)">Generated: ${brief.created_at ? new Date(brief.created_at).toLocaleString() : 'Unknown'}</div>
+      `;
+    }
+
+    // Latest insights cards
+    if (latest.status === 'no_data') {
+      document.getElementById('insights-cards').innerHTML = `<div class="card" style="grid-column:1/-1">${emptyState('&#9733;', 'No insights yet', 'Run analysis to generate AI insights', '<button class="btn btn-primary btn-sm" onclick="triggerInsightAnalysis()">Analyze Now</button>')}</div>`;
+    } else {
+      const insightTypes = {
+        sentiment_trends: { icon: '&#9829;', color: 'var(--pink)' },
+        competitive_position: { icon: '&#9673;', color: 'var(--orange)' },
+        data_anomalies: { icon: '&#9888;', color: 'var(--red)' },
+        experiments: { icon: '&#9733;', color: 'var(--green)' },
+      };
+      const entries = Object.entries(latest).filter(([k]) => k !== 'status' && k !== 'message');
+      document.getElementById('insights-cards').innerHTML = entries.length ? entries.map(([type, insight]) => {
+        const meta = insightTypes[type] || { icon: '&#9679;', color: 'var(--accent)' };
+        const content = typeof insight.content === 'string' ? insight.content : JSON.stringify(insight.content, null, 2);
+        const preview = content.substring(0, 300);
+        return `
+          <div class="card">
+            <h3 style="color:${meta.color}">${meta.icon} ${type.replace(/_/g, ' ')}</h3>
+            <div style="font-size:12px;line-height:1.6;color:var(--text2);margin-top:8px;white-space:pre-wrap">${escapeHtml(preview)}${content.length > 300 ? '...' : ''}</div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text3)">${insight.created_at ? new Date(insight.created_at).toLocaleString() : ''}</div>
+          </div>
+        `;
+      }).join('') : `<div class="card" style="grid-column:1/-1">${emptyState('&#9733;', 'No insights available', 'Run analysis to generate insights')}</div>`;
+    }
+
+    // History
+    if (history.length) {
+      document.getElementById('insights-history').innerHTML = history.map(h => {
+        const content = typeof h.content === 'string' ? h.content : JSON.stringify(h.content);
+        return `
+          <div class="list-item">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="tag tag-purple">${h.type || 'unknown'}</span>
+              <span style="font-size:11px;color:var(--text3)">${h.created_at ? new Date(h.created_at).toLocaleString() : ''}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(content.substring(0, 150))}${content.length > 150 ? '...' : ''}</div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      document.getElementById('insights-history').innerHTML = emptyState('&#8635;', 'No insight history', 'Insights accumulate over time as analysis runs');
+    }
+  } catch (err) {
+    document.getElementById('insights-brief').innerHTML = emptyState('&#9888;', 'Failed to load insights', 'Check server connection');
+  }
+}
+
+async function triggerInsightAnalysis(type) {
+  showToast('Starting analysis...', 'info');
+  try {
+    const params = type ? `?type=${type}` : '';
+    const r = await api('/api/insights/analyze' + params, { method: 'POST' });
+    showToast(r.status === 'full_analysis_started' ? 'Full analysis started in background' : `Analysis started: ${r.type}`, 'success');
+    setTimeout(loadInsights, 3000);
+  } catch (err) {}
 }
 
 // --- Modal ---
