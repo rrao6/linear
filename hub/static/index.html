@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linear Hub — Tubi FAST TV SSOT</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --bg4: #282e36;
+  --border: #30363d; --text: #c9d1d9; --text2: #8b949e; --text3: #6e7681;
+  --accent: #58a6ff; --green: #3fb950; --red: #f85149; --orange: #d29922;
+  --purple: #bc8cff; --pink: #f778ba; --yellow: #e3b341; --cyan: #56d4dd;
+  --sidebar-w: 240px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar { width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border); position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 50; display: flex; flex-direction: column; }
+.sidebar-header { padding: 20px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-header h1 { font-size: 18px; color: var(--accent); font-weight: 700; }
+.sidebar-header p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 8px 0; }
+.nav-section { padding: 8px 16px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); font-weight: 600; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; color: var(--text2); text-decoration: none; font-size: 13px; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: var(--bg3); color: var(--accent); border-left-color: var(--accent); }
+.nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+.nav-item .badge { margin-left: auto; background: var(--accent); color: var(--bg); font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+
+/* Main */
+.main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.topbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
+.topbar h2 { font-size: 16px; font-weight: 600; }
+.topbar-actions { display: flex; gap: 8px; }
+.content { padding: 24px; max-width: 1400px; }
+
+/* Components */
+.grid { display: grid; gap: 16px; margin-bottom: 24px; }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g4 { grid-template-columns: repeat(4, 1fr); }
+.g5 { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1200px) { .g4, .g5 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .g2, .g3, .g4, .g5 { grid-template-columns: 1fr; } }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card-sm { padding: 12px; }
+.card h3 { font-size: 13px; color: var(--text2); font-weight: 500; margin-bottom: 8px; }
+.card .value { font-size: 28px; font-weight: 700; }
+.card .sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
+.card .delta { font-size: 12px; font-weight: 600; }
+.delta.up { color: var(--green); }
+.delta.down { color: var(--red); }
+
+.section-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-title .count { font-size: 11px; color: var(--text3); font-weight: 400; }
+
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.tag-green { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+.tag-red { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+.tag-orange { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+.tag-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+.tag-purple { background: rgba(188, 140, 255, 0.15); color: var(--purple); }
+.tag-gray { background: var(--bg3); color: var(--text2); }
+
+.btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.btn:hover { background: var(--bg4); border-color: var(--text3); }
+.btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn-primary:hover { opacity: 0.9; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; font-size: 12px; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+tr:hover { background: var(--bg3); }
+
+.progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+textarea, input[type=text], select { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 12px; font-size: 13px; font-family: inherit; width: 100%; }
+textarea:focus, input[type=text]:focus { outline: none; border-color: var(--accent); }
+textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, monospace; }
+
+.empty { text-align: center; padding: 40px; color: var(--text3); }
+
+/* Tab page visibility */
+.page { display: none; }
+.page.active { display: block; }
+
+/* Score bars */
+.score-bar { display: flex; align-items: center; gap: 8px; }
+.score-bar-bg { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; }
+.score-bar-fill { height: 100%; border-radius: 4px; }
+
+/* List items */
+.list-item { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.list-item:hover { background: var(--bg3); }
+.list-item:last-child { border-bottom: none; }
+.list-item-title { font-weight: 500; margin-bottom: 4px; }
+.list-item-meta { font-size: 12px; color: var(--text3); display: flex; gap: 12px; }
+
+/* Modals */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto; padding: 24px; }
+.modal h3 { margin-bottom: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+
+/* Loading */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1>Linear Hub</h1>
+    <p>Tubi FAST TV SSOT</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Overview</div>
+    <a class="nav-item active" data-page="dashboard"><span class="icon">&#9632;</span> Dashboard</a>
+
+    <div class="nav-section">Intelligence</div>
+    <a class="nav-item" data-page="intel"><span class="icon">&#9673;</span> Intel Monitor</a>
+    <a class="nav-item" data-page="sentiment"><span class="icon">&#9829;</span> Sentiment</a>
+
+    <div class="nav-section">Data</div>
+    <a class="nav-item" data-page="data"><span class="icon">&#9881;</span> Data Explorer</a>
+    <a class="nav-item" data-page="verifications"><span class="icon">&#10003;</span> Verifications</a>
+
+    <div class="nav-section">Product</div>
+    <a class="nav-item" data-page="features"><span class="icon">&#9733;</span> Features</a>
+    <a class="nav-item" data-page="oem"><span class="icon">&#9635;</span> OEM Tracker</a>
+
+    <div class="nav-section">Operations</div>
+    <a class="nav-item" data-page="work"><span class="icon">&#9744;</span> Work Queue</a>
+    <a class="nav-item" data-page="learnings"><span class="icon">&#9998;</span> Learnings</a>
+    <a class="nav-item" data-page="changelog"><span class="icon">&#8635;</span> Changelog</a>
+    <a class="nav-item" data-page="search"><span class="icon">&#8981;</span> Search</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div>Hub v1.0 &middot; <span id="health-indicator">...</span></div>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<div class="main">
+  <div class="topbar">
+    <h2 id="page-title">Dashboard</h2>
+    <div class="topbar-actions">
+      <button class="btn btn-sm" onclick="refreshData()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD PAGE -->
+    <div class="page active" id="page-dashboard">
+      <div class="grid g5" id="kpi-cards"></div>
+
+      <div class="grid g2">
+        <div class="card">
+          <h3>Goal Progress — H2 FY26</h3>
+          <div id="goal-progress"></div>
+        </div>
+        <div class="card">
+          <h3>System Health</h3>
+          <div id="system-health"></div>
+        </div>
+      </div>
+
+      <div class="grid g3">
+        <div class="card">
+          <h3>Work Items</h3>
+          <div id="work-summary"></div>
+        </div>
+        <div class="card">
+          <h3>Data Verifications</h3>
+          <div id="verify-summary"></div>
+        </div>
+        <div class="card">
+          <h3>Sentiment Overview</h3>
+          <div id="sentiment-summary"></div>
+        </div>
+      </div>
+
+      <div class="section-title">Active Initiatives</div>
+      <div class="card">
+        <div class="table-wrap">
+          <table id="initiatives-table">
+            <thead><tr><th>Initiative</th><th>Status</th><th>TVT Impact</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- INTEL MONITOR PAGE -->
+    <div class="page" id="page-intel">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="triggerScan()">Run Scan</button>
+        <button class="btn" onclick="loadIntel()">Refresh</button>
+      </div>
+      <div class="grid g3" id="intel-stats"></div>
+      <div class="grid g2">
+        <div>
+          <div class="section-title">Threats</div>
+          <div class="card" id="threats-list"></div>
+        </div>
+        <div>
+          <div class="section-title">Opportunities</div>
+          <div class="card" id="opps-list"></div>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top:16px">Trends</div>
+      <div class="card" id="trends-list"></div>
+      <div class="section-title" style="margin-top:16px">Competitor Profiles</div>
+      <div class="card" id="competitors-list"></div>
+    </div>
+
+    <!-- SENTIMENT PAGE -->
+    <div class="page" id="page-sentiment">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddFeedback()">Add Feedback</button>
+      </div>
+      <div class="grid g4" id="sentiment-cards"></div>
+      <div class="grid g2">
+        <div>
+          <div class="section-title">Topics</div>
+          <div class="card" id="topics-list"></div>
+        </div>
+        <div>
+          <div class="section-title">Recent Feedback</div>
+          <div class="card" id="feedback-list" style="max-height:500px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA EXPLORER PAGE -->
+    <div class="page" id="page-data">
+      <div class="grid g2">
+        <div>
+          <div class="section-title">Query Library</div>
+          <div class="card" id="query-library"></div>
+        </div>
+        <div>
+          <div class="section-title">Key Tables</div>
+          <div class="card" id="tables-ref"></div>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top:16px">Custom SQL</div>
+      <div class="card">
+        <textarea id="sql-input" placeholder="SELECT ... FROM core_prod.session.video_session WHERE date >= CURRENT_DATE - INTERVAL 7 DAYS AND tvt_millisec > 0 LIMIT 100"></textarea>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="runSQL()">Execute</button>
+          <span id="query-status" style="font-size:12px;color:var(--text3);line-height:32px"></span>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top:16px">Results</div>
+      <div class="card">
+        <div class="table-wrap" id="query-results"><div class="empty">Run a query to see results</div></div>
+      </div>
+      <div class="section-title" style="margin-top:16px">Query History</div>
+      <div class="card" id="query-history"></div>
+    </div>
+
+    <!-- VERIFICATIONS PAGE -->
+    <div class="page" id="page-verifications">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddVerification()">Add Verification</button>
+      </div>
+      <div class="grid g3" id="verify-stats-cards"></div>
+      <div class="section-title">Data Verifications</div>
+      <div class="card">
+        <div class="table-wrap" id="verifications-table"></div>
+      </div>
+    </div>
+
+    <!-- FEATURES PAGE -->
+    <div class="page" id="page-features">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddExperiment()">Add Experiment</button>
+      </div>
+      <div id="roadmap-view"></div>
+      <div class="section-title" style="margin-top:24px">Experiments</div>
+      <div class="card" id="experiments-list"></div>
+    </div>
+
+    <!-- OEM TRACKER PAGE -->
+    <div class="page" id="page-oem">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddOEM()">Add Snapshot</button>
+      </div>
+      <div class="section-title">Platform Overview</div>
+      <div class="grid g3" id="platform-cards"></div>
+      <div class="section-title" style="margin-top:16px">Gracenote ID Mappings</div>
+      <div class="card" id="gracenote-list"></div>
+      <div class="section-title" style="margin-top:16px">Placement History</div>
+      <div class="card" id="oem-history"></div>
+    </div>
+
+    <!-- WORK QUEUE PAGE -->
+    <div class="page" id="page-work">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddWork()">Add Work Item</button>
+        <select id="work-filter" onchange="loadWork()" style="width:auto">
+          <option value="">All</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Done</option>
+        </select>
+        <select id="work-type-filter" onchange="loadWork()" style="width:auto">
+          <option value="">All Types</option>
+          <option value="task">Tasks</option>
+          <option value="prd">PRDs</option>
+          <option value="change">Changes</option>
+          <option value="investigation">Investigations</option>
+          <option value="plan">Plans</option>
+        </select>
+      </div>
+      <div class="grid g4" id="work-stats-cards"></div>
+      <div class="card" id="work-list" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+
+    <!-- LEARNINGS PAGE -->
+    <div class="page" id="page-learnings">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddLearning()">Add Learning</button>
+        <select id="learning-filter" onchange="loadLearnings()" style="width:auto">
+          <option value="">All</option>
+          <option value="data_issue">Data Issues</option>
+          <option value="query_gotcha">Query Gotchas</option>
+          <option value="metric_verified">Verified Metrics</option>
+          <option value="platform_behavior">Platform Behavior</option>
+          <option value="process">Process</option>
+        </select>
+      </div>
+      <div class="card" id="learnings-list" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+
+    <!-- CHANGELOG PAGE -->
+    <div class="page" id="page-changelog">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showAddChange()">Add Entry</button>
+        <select id="changelog-filter" onchange="loadChangelog()" style="width:auto">
+          <option value="">All</option>
+          <option value="decision">Decisions</option>
+          <option value="change">Changes</option>
+          <option value="launch">Launches</option>
+          <option value="finding">Findings</option>
+          <option value="rollback">Rollbacks</option>
+        </select>
+      </div>
+      <div class="card" id="changelog-list" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+
+    <!-- SEARCH PAGE -->
+    <div class="page" id="page-search">
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:8px">
+          <input type="text" id="search-input" placeholder="Search across all hub data..." onkeydown="if(event.key==='Enter')runSearch()">
+          <button class="btn btn-primary" onclick="runSearch()">Search</button>
+        </div>
+      </div>
+      <div id="search-results"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+const API = '';  // Same origin
+
+// --- Navigation ---
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const page = item.dataset.page;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('page-title').textContent = item.textContent.trim();
+    loadPageData(page);
+  });
+});
+
+function loadPageData(page) {
+  const loaders = {
+    dashboard: loadDashboard,
+    intel: loadIntel,
+    sentiment: loadSentiment,
+    data: loadDataExplorer,
+    verifications: loadVerifications,
+    features: loadFeatures,
+    oem: loadOEM,
+    work: loadWork,
+    learnings: loadLearnings,
+    changelog: loadChangelog,
+  };
+  if (loaders[page]) loaders[page]();
+}
+
+function refreshData() {
+  const active = document.querySelector('.nav-item.active');
+  if (active) loadPageData(active.dataset.page);
+}
+
+// --- API helpers ---
+async function api(path, opts = {}) {
+  const resp = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  return resp.json();
+}
+
+function statusTag(status) {
+  const colors = { open: 'blue', in_progress: 'orange', running: 'orange', blocked: 'red',
+    done: 'green', completed: 'green', planned: 'gray', match: 'green',
+    mismatch: 'red', pending: 'gray', investigating: 'orange', killed: 'red',
+    development: 'orange', analyzing: 'purple' };
+  return `<span class="tag tag-${colors[status] || 'gray'}">${status}</span>`;
+}
+
+function priorityTag(p) {
+  const c = { critical: 'red', high: 'orange', medium: 'blue', low: 'gray' };
+  return `<span class="tag tag-${c[p] || 'gray'}">${p}</span>`;
+}
+
+function scoreBar(score, max = 10, color = 'var(--accent)') {
+  const pct = Math.round((score / max) * 100);
+  return `<div class="score-bar"><div class="score-bar-bg"><div class="score-bar-fill" style="width:${pct}%;background:${color}"></div></div><span style="font-size:12px;color:var(--text2)">${score}</span></div>`;
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  const [overview, goals] = await Promise.all([
+    api('/api/dashboard/overview'),
+    api('/api/dashboard/goals'),
+  ]);
+
+  const k = overview.kpis || {};
+  const kpis = [
+    { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)' },
+    { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)' },
+    { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)' },
+    { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)' },
+    { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)' },
+  ];
+
+  document.getElementById('kpi-cards').innerHTML = kpis.map(kpi =>
+    `<div class="card card-sm"><h3>${kpi.label}</h3><div class="value" style="color:${kpi.color}">${kpi.value}</div><div class="sub">${kpi.sub}</div></div>`
+  ).join('');
+
+  // Goal progress
+  const tvtPct = Math.min(100, (k.linear_tvt_share_current / k.linear_tvt_share_target) * 100);
+  document.getElementById('goal-progress').innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>Linear TVT: ${k.linear_tvt_share_current}%</span><span>Target: ${k.linear_tvt_share_target}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${tvtPct}%;background:var(--accent)"></div></div>
+    </div>
+    ${(goals.goals || []).map(g => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${g.name}</span><span class="tag tag-blue">${g.target}</span></div>`).join('')}
+  `;
+
+  // System health
+  const scan = overview.latest_scan;
+  document.getElementById('system-health').innerHTML = `
+    <div style="font-size:13px">
+      <div style="padding:4px 0">Latest scan: ${scan ? scan.scan_date + '/' + scan.run_id : 'None'}</div>
+      <div style="padding:4px 0">Articles: ${scan?.articles_collected || 0}</div>
+      <div style="padding:4px 0">Threats: ${scan?.threats_found || 0}</div>
+      <div style="padding:4px 0">Reports: ${overview.intel?.reports || 0}</div>
+    </div>
+  `;
+
+  // Work summary
+  const w = overview.work || {};
+  document.getElementById('work-summary').innerHTML = `
+    <div style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Open <span class="tag tag-blue">${w.open || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">In Progress <span class="tag tag-orange">${w.in_progress || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Blocked <span class="tag tag-red">${w.blocked || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Done <span class="tag tag-green">${w.done || 0}</span></div>
+    </div>
+  `;
+
+  // Verify summary
+  const v = overview.verifications || {};
+  document.getElementById('verify-summary').innerHTML = `
+    <div style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Verified <span class="tag tag-green">${v.match || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Mismatch <span class="tag tag-red">${v.mismatch || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Pending <span class="tag tag-gray">${v.pending || 0}</span></div>
+    </div>
+  `;
+
+  // Sentiment summary
+  const s = overview.sentiment || {};
+  document.getElementById('sentiment-summary').innerHTML = `
+    <div style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Total <span>${s.total || 0}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">Avg Score <span>${s.avg_score || 0}</span></div>
+      ${Object.entries(s.by_sentiment || {}).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:4px 0">${k} <span>${v}</span></div>`).join('')}
+    </div>
+  `;
+
+  // Initiatives
+  const tbody = document.querySelector('#initiatives-table tbody');
+  tbody.innerHTML = (goals.initiatives || []).map(i =>
+    `<tr><td>${i.name}</td><td>${statusTag(i.status)}</td><td>${i.tvt_impact}</td></tr>`
+  ).join('');
+}
+
+// --- Intel Monitor ---
+async function loadIntel() {
+  const data = await api('/api/intel/latest');
+  if (data.error) {
+    document.getElementById('intel-stats').innerHTML = `<div class="card"><div class="empty">${data.error}</div></div>`;
+    return;
+  }
+
+  const analysis = data.analysis || {};
+  const threats = analysis.threats || [];
+  const opps = analysis.opportunities || [];
+  const trends = analysis.trends || [];
+  const profiles = analysis.profiles || [];
+  const classified = data.classified?.intel || data.classified?.filtered || [];
+
+  document.getElementById('intel-stats').innerHTML = [
+    `<div class="card card-sm"><h3>Classified Intel</h3><div class="value">${classified.length}</div></div>`,
+    `<div class="card card-sm"><h3>Threats</h3><div class="value" style="color:var(--red)">${threats.length}</div></div>`,
+    `<div class="card card-sm"><h3>Opportunities</h3><div class="value" style="color:var(--green)">${opps.length}</div></div>`,
+  ].join('');
+
+  document.getElementById('threats-list').innerHTML = threats.length ? threats.map(t =>
+    `<div class="list-item"><div class="list-item-title">${t.description || t.threat_type}</div><div class="list-item-meta"><span>Severity: ${scoreBar(t.severity, 10, 'var(--red)')}</span><span>${t.timeframe || ''}</span></div>${t.defensive_action ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">Action: ${t.defensive_action}</div>` : ''}</div>`
+  ).join('') : '<div class="empty">No threats found</div>';
+
+  document.getElementById('opps-list').innerHTML = opps.length ? opps.map(o =>
+    `<div class="list-item"><div class="list-item-title">${o.description || o.opportunity_type}</div><div class="list-item-meta"><span>Value: ${scoreBar(o.potential_value, 10, 'var(--green)')}</span><span>Feasibility: ${o.feasibility}/10</span></div></div>`
+  ).join('') : '<div class="empty">No opportunities found</div>';
+
+  document.getElementById('trends-list').innerHTML = trends.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Trend</th><th>Category</th><th>Direction</th><th>Strength</th></tr></thead><tbody>${trends.map(t =>
+      `<tr><td>${t.name}</td><td><span class="tag tag-purple">${t.category}</span></td><td>${t.direction}</td><td>${scoreBar(t.strength, 10)}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No trends identified</div>';
+
+  document.getElementById('competitors-list').innerHTML = profiles.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Competitor</th><th>Tier</th><th>Channels</th><th>Threat</th><th>Strategy</th></tr></thead><tbody>${profiles.map(p =>
+      `<tr><td><strong>${p.name}</strong></td><td>${p.tier}</td><td>${p.channel_count || '—'}</td><td>${scoreBar(p.threat_level, 10, 'var(--red)')}</td><td style="font-size:12px;max-width:300px">${p.strategy_focus || ''}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No profiles</div>';
+}
+
+async function triggerScan() {
+  const r = await api('/api/intel/scan', { method: 'POST' });
+  alert('Scan started: ' + JSON.stringify(r));
+}
+
+// --- Sentiment ---
+async function loadSentiment() {
+  const [summary, topics, feed] = await Promise.all([
+    api('/api/sentiment/summary'),
+    api('/api/sentiment/topics'),
+    api('/api/sentiment/feed?limit=50'),
+  ]);
+
+  document.getElementById('sentiment-cards').innerHTML = [
+    `<div class="card card-sm"><h3>Total Feedback</h3><div class="value">${summary.total}</div></div>`,
+    `<div class="card card-sm"><h3>Avg Score</h3><div class="value" style="color:${summary.avg_score >= 0 ? 'var(--green)' : 'var(--red)'}">${summary.avg_score}</div><div class="sub">-1 to +1</div></div>`,
+    `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${summary.by_sentiment?.positive || 0}</div></div>`,
+    `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${summary.by_sentiment?.negative || 0}</div></div>`,
+  ].join('');
+
+  document.getElementById('topics-list').innerHTML = topics.length ? topics.map(t =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)"><span>${t.topic}</span><span class="tag tag-gray">${t.count}</span></div>`
+  ).join('') : '<div class="empty">No topics yet. Add feedback to see themes.</div>';
+
+  document.getElementById('feedback-list').innerHTML = feed.length ? feed.map(f =>
+    `<div class="list-item"><div style="display:flex;justify-content:space-between"><span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span><span style="font-size:11px;color:var(--text3)">${f.source}</span></div><div style="font-size:13px;margin-top:6px">${f.text}</div><div class="list-item-meta" style="margin-top:4px">${f.author ? `<span>${f.author}</span>` : ''}${f.collected_at ? `<span>${new Date(f.collected_at).toLocaleDateString()}</span>` : ''}</div></div>`
+  ).join('') : '<div class="empty">No feedback yet</div>';
+}
+
+function showAddFeedback() {
+  showModal('Add Feedback', `
+    <div class="form-group"><label>Source</label><select id="fb-source"><option>manual</option><option>reddit</option><option>appstore</option><option>twitter</option><option>slack</option></select></div>
+    <div class="form-group"><label>Text</label><textarea id="fb-text"></textarea></div>
+    <div class="form-group"><label>Sentiment</label><select id="fb-sentiment"><option>neutral</option><option>positive</option><option>negative</option><option>mixed</option></select></div>
+    <div class="form-group"><label>Topics (comma-separated)</label><input type="text" id="fb-topics" placeholder="epg, channel-count, ads"></div>
+    <button class="btn btn-primary" onclick="submitFeedback()">Save</button>
+  `);
+}
+
+async function submitFeedback() {
+  const topics = document.getElementById('fb-topics').value.split(',').map(t => t.trim()).filter(Boolean);
+  await api('/api/sentiment/feedback', { method: 'POST', body: JSON.stringify({
+    source: document.getElementById('fb-source').value,
+    text: document.getElementById('fb-text').value,
+    sentiment: document.getElementById('fb-sentiment').value,
+    topics,
+  })});
+  hideModal();
+  loadSentiment();
+}
+
+// --- Data Explorer ---
+async function loadDataExplorer() {
+  const [queries, tables, history] = await Promise.all([
+    api('/api/data/queries'),
+    api('/api/data/tables'),
+    api('/api/data/history?limit=10'),
+  ]);
+
+  document.getElementById('query-library').innerHTML = (queries.error ? [] : queries).map(q =>
+    `<div class="list-item" style="cursor:pointer" onclick="runNamedQuery('${q.name}')"><div class="list-item-title">${q.name}</div><div class="list-item-meta"><span>${q.description}</span></div></div>`
+  ).join('') || '<div class="empty">No queries available (Databricks not connected)</div>';
+
+  const t = tables;
+  document.getElementById('tables-ref').innerHTML = `
+    ${(t.primary || []).map(tbl => `<div style="padding:6px 0;border-bottom:1px solid var(--border)"><div style="font-family:monospace;font-size:12px;color:var(--accent)">${tbl.name}</div><div style="font-size:11px;color:var(--text3)">${tbl.description}${tbl.partition ? ` (partition: ${tbl.partition})` : ''}</div></div>`).join('')}
+    <div style="margin-top:12px;font-size:12px;color:var(--text2)"><strong>Gotchas:</strong></div>
+    ${(t.gotchas || []).map(g => `<div style="font-size:11px;color:var(--orange);padding:2px 0">&#9888; ${g}</div>`).join('')}
+  `;
+
+  document.getElementById('query-history').innerHTML = history.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Query</th><th>Rows</th><th>Time</th><th>When</th></tr></thead><tbody>${history.map(h =>
+      `<tr><td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px">${h.query_name || h.sql_text.substring(0, 60)}</td><td>${h.row_count}</td><td>${h.elapsed_sec}s</td><td style="font-size:11px">${new Date(h.created_at).toLocaleString()}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No query history</div>';
+}
+
+async function runNamedQuery(name) {
+  document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
+  const r = await api('/api/data/named', { method: 'POST', body: JSON.stringify({ name, days: 30, limit: 50 }) });
+  renderQueryResults(r);
+}
+
+async function runSQL() {
+  const sql = document.getElementById('sql-input').value.trim();
+  if (!sql) return;
+  document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
+  const r = await api('/api/data/query', { method: 'POST', body: JSON.stringify({ sql, limit: 100 }) });
+  renderQueryResults(r);
+}
+
+function renderQueryResults(r) {
+  if (r.error) {
+    document.getElementById('query-results').innerHTML = `<div style="color:var(--red);font-family:monospace;font-size:12px">${r.error}</div>`;
+    document.getElementById('query-status').textContent = `Error (${r.elapsed_sec || 0}s)`;
+    return;
+  }
+  const cols = r.columns || [];
+  const rows = r.rows || [];
+  document.getElementById('query-status').textContent = `${r.row_count} rows (${r.elapsed_sec}s)`;
+  document.getElementById('query-results').innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+// --- Verifications ---
+async function loadVerifications() {
+  const data = await api('/api/strategy/verifications');
+  const stats = { match: 0, mismatch: 0, pending: 0 };
+  data.forEach(v => { if (stats[v.match_status] !== undefined) stats[v.match_status]++; });
+
+  document.getElementById('verify-stats-cards').innerHTML = [
+    `<div class="card card-sm"><h3>Verified</h3><div class="value" style="color:var(--green)">${stats.match}</div></div>`,
+    `<div class="card card-sm"><h3>Mismatch</h3><div class="value" style="color:var(--red)">${stats.mismatch}</div></div>`,
+    `<div class="card card-sm"><h3>Pending</h3><div class="value">${stats.pending}</div></div>`,
+  ].join('');
+
+  document.getElementById('verifications-table').innerHTML = data.length ?
+    `<table><thead><tr><th>Metric</th><th>Expected</th><th>Actual</th><th>Source</th><th>Status</th></tr></thead><tbody>${data.map(v =>
+      `<tr><td>${v.metric_name}</td><td>${v.expected_value}</td><td>${v.actual_value}</td><td style="font-size:11px">${v.dashboard_source}</td><td>${statusTag(v.match_status)}</td></tr>`
+    ).join('')}</tbody></table>` : '<div class="empty">No verifications yet</div>';
+}
+
+function showAddVerification() {
+  showModal('Add Data Verification', `
+    <div class="form-group"><label>Metric Name</label><input type="text" id="v-metric" placeholder="e.g., Linear TVT Share (30d)"></div>
+    <div class="form-group"><label>SQL Query</label><textarea id="v-sql"></textarea></div>
+    <div class="form-group"><label>Expected Value</label><input type="text" id="v-expected"></div>
+    <div class="form-group"><label>Dashboard Source</label><input type="text" id="v-source" placeholder="e.g., Internal Dashboard"></div>
+    <div class="form-group"><label>Notes</label><input type="text" id="v-notes"></div>
+    <button class="btn btn-primary" onclick="submitVerification()">Save</button>
+  `);
+}
+
+async function submitVerification() {
+  await api('/api/strategy/verifications', { method: 'POST', body: JSON.stringify({
+    metric_name: document.getElementById('v-metric').value,
+    query_sql: document.getElementById('v-sql').value,
+    expected_value: document.getElementById('v-expected').value,
+    dashboard_source: document.getElementById('v-source').value,
+    notes: document.getElementById('v-notes').value,
+  })});
+  hideModal(); loadVerifications();
+}
+
+// --- Features ---
+async function loadFeatures() {
+  const [roadmap, experiments] = await Promise.all([
+    api('/api/features/roadmap'),
+    api('/api/features/experiments'),
+  ]);
+
+  document.getElementById('roadmap-view').innerHTML = (roadmap.phases || []).map(phase => `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="color:var(--text);font-size:14px">${phase.name}</h3>
+        ${statusTag(phase.status)}
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Experiment</th><th>Status</th><th>Metrics</th></tr></thead><tbody>
+      ${phase.experiments.map(e => `<tr><td>${e.id} ${e.name}</td><td>${statusTag(e.status)}</td><td style="font-size:11px">${e.metrics.join(', ')}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>
+  `).join('');
+
+  document.getElementById('experiments-list').innerHTML = experiments.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Hypothesis</th></tr></thead><tbody>${experiments.map(e =>
+      `<tr><td>${e.name}</td><td>${e.phase}</td><td>${statusTag(e.status)}</td><td style="font-size:12px;max-width:300px">${e.hypothesis || ''}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No experiments tracked yet</div>';
+}
+
+function showAddExperiment() {
+  showModal('Add Experiment', `
+    <div class="form-group"><label>Name</label><input type="text" id="exp-name"></div>
+    <div class="form-group"><label>Phase</label><select id="exp-phase"><option>phase_1</option><option>phase_2</option><option>phase_3</option><option>phase_4</option></select></div>
+    <div class="form-group"><label>Hypothesis</label><textarea id="exp-hypothesis"></textarea></div>
+    <div class="form-group"><label>Status</label><select id="exp-status"><option>planned</option><option>running</option><option>analyzing</option><option>completed</option></select></div>
+    <button class="btn btn-primary" onclick="submitExperiment()">Save</button>
+  `);
+}
+
+async function submitExperiment() {
+  await api('/api/features/experiments', { method: 'POST', body: JSON.stringify({
+    name: document.getElementById('exp-name').value,
+    phase: document.getElementById('exp-phase').value,
+    hypothesis: document.getElementById('exp-hypothesis').value,
+    status: document.getElementById('exp-status').value,
+  })});
+  hideModal(); loadFeatures();
+}
+
+// --- OEM ---
+async function loadOEM() {
+  const [platforms, snapshots, gracenote] = await Promise.all([
+    api('/api/oem/platforms'),
+    api('/api/oem/snapshots'),
+    api('/api/oem/gracenote'),
+  ]);
+
+  document.getElementById('platform-cards').innerHTML = (platforms.platforms || []).map(p => `
+    <div class="card">
+      <h3 style="color:var(--text)">${p.name}</h3>
+      ${p.tvt_share ? `<div style="font-size:12px">TVT Share: <strong>${p.tvt_share}%</strong></div>` : ''}
+      <div style="font-size:12px;margin-top:4px">Dependency: <span class="tag tag-${p.dependency_level === 'critical' ? 'red' : p.dependency_level === 'high' ? 'orange' : 'gray'}">${p.dependency_level}</span></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">${p.notes}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('gracenote-list').innerHTML = gracenote.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Tubi ID</th><th>Gracenote ID</th><th>Name</th><th>Type</th><th>Status</th></tr></thead><tbody>${gracenote.map(m =>
+      `<tr><td style="font-family:monospace;font-size:11px">${m.tubi_content_id}</td><td style="font-family:monospace;font-size:11px">${m.gracenote_id || '—'}</td><td>${m.content_name}</td><td>${m.content_type}</td><td>${statusTag(m.match_status)}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No Gracenote mappings yet</div>';
+
+  document.getElementById('oem-history').innerHTML = snapshots.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Platform</th><th>Date</th><th>Notes</th></tr></thead><tbody>${snapshots.map(s =>
+      `<tr><td>${s.platform}</td><td>${s.date}</td><td style="font-size:12px">${s.notes}</td></tr>`
+    ).join('')}</tbody></table></div>` : '<div class="empty">No OEM snapshots yet. Add placement data to track changes.</div>';
+}
+
+function showAddOEM() {
+  showModal('Add OEM Snapshot', `
+    <div class="form-group"><label>Platform</label><select id="oem-platform"><option>amazon_fire</option><option>roku</option><option>samsung</option><option>lg</option><option>vizio</option><option>google_tv</option></select></div>
+    <div class="form-group"><label>Date</label><input type="text" id="oem-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>Notes</label><textarea id="oem-notes"></textarea></div>
+    <button class="btn btn-primary" onclick="submitOEM()">Save</button>
+  `);
+}
+
+async function submitOEM() {
+  await api('/api/oem/snapshots', { method: 'POST', body: JSON.stringify({
+    platform: document.getElementById('oem-platform').value,
+    date: document.getElementById('oem-date').value,
+    notes: document.getElementById('oem-notes').value,
+  })});
+  hideModal(); loadOEM();
+}
+
+// --- Work Queue ---
+async function loadWork() {
+  const status = document.getElementById('work-filter')?.value || '';
+  const type = document.getElementById('work-type-filter')?.value || '';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (type) params.set('type', type);
+  const items = await api('/api/strategy/work?' + params);
+
+  const stats = { open: 0, in_progress: 0, blocked: 0, done: 0 };
+  items.forEach(w => { if (stats[w.status] !== undefined) stats[w.status]++; });
+
+  document.getElementById('work-stats-cards').innerHTML = [
+    `<div class="card card-sm"><h3>Open</h3><div class="value">${stats.open}</div></div>`,
+    `<div class="card card-sm"><h3>In Progress</h3><div class="value" style="color:var(--orange)">${stats.in_progress}</div></div>`,
+    `<div class="card card-sm"><h3>Blocked</h3><div class="value" style="color:var(--red)">${stats.blocked}</div></div>`,
+    `<div class="card card-sm"><h3>Done</h3><div class="value" style="color:var(--green)">${stats.done}</div></div>`,
+  ].join('');
+
+  document.getElementById('work-list').innerHTML = items.length ? items.map(w => `
+    <div class="list-item">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="list-item-title">${w.title}</div>
+        <div style="display:flex;gap:6px">${priorityTag(w.priority)} ${statusTag(w.status)} <span class="tag tag-gray">${w.type}</span></div>
+      </div>
+      ${w.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${w.description.substring(0, 150)}</div>` : ''}
+      <div class="list-item-meta" style="margin-top:4px">${w.owner ? `<span>Owner: ${w.owner}</span>` : ''}<span>${new Date(w.created_at).toLocaleDateString()}</span></div>
+    </div>
+  `).join('') : '<div class="empty">No work items</div>';
+}
+
+function showAddWork() {
+  showModal('Add Work Item', `
+    <div class="form-group"><label>Type</label><select id="w-type"><option>task</option><option>prd</option><option>investigation</option><option>change</option><option>plan</option></select></div>
+    <div class="form-group"><label>Title</label><input type="text" id="w-title"></div>
+    <div class="form-group"><label>Description</label><textarea id="w-desc"></textarea></div>
+    <div class="form-group"><label>Priority</label><select id="w-priority"><option>medium</option><option>critical</option><option>high</option><option>low</option></select></div>
+    <div class="form-group"><label>Owner</label><input type="text" id="w-owner"></div>
+    <button class="btn btn-primary" onclick="submitWork()">Save</button>
+  `);
+}
+
+async function submitWork() {
+  await api('/api/strategy/work', { method: 'POST', body: JSON.stringify({
+    type: document.getElementById('w-type').value,
+    title: document.getElementById('w-title').value,
+    description: document.getElementById('w-desc').value,
+    priority: document.getElementById('w-priority').value,
+    owner: document.getElementById('w-owner').value,
+  })});
+  hideModal(); loadWork();
+}
+
+// --- Learnings ---
+async function loadLearnings() {
+  const cat = document.getElementById('learning-filter')?.value || '';
+  const params = cat ? `?category=${cat}` : '';
+  const items = await api('/api/strategy/learnings' + params);
+
+  document.getElementById('learnings-list').innerHTML = items.length ? items.map(l => `
+    <div class="list-item">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="list-item-title">${l.title}</div>
+        <div style="display:flex;gap:6px"><span class="tag tag-purple">${l.category}</span>${l.verified ? '<span class="tag tag-green">verified</span>' : ''}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">${l.description}</div>
+      ${l.source ? `<div class="list-item-meta" style="margin-top:4px"><span>Source: ${l.source}</span></div>` : ''}
+    </div>
+  `).join('') : '<div class="empty">No learnings yet. Record data issues, gotchas, and verified facts.</div>';
+}
+
+function showAddLearning() {
+  showModal('Add Learning', `
+    <div class="form-group"><label>Category</label><select id="l-cat"><option>data_issue</option><option>query_gotcha</option><option>metric_verified</option><option>platform_behavior</option><option>process</option></select></div>
+    <div class="form-group"><label>Title</label><input type="text" id="l-title"></div>
+    <div class="form-group"><label>Description</label><textarea id="l-desc"></textarea></div>
+    <div class="form-group"><label>Source</label><input type="text" id="l-source" placeholder="Where did we learn this?"></div>
+    <button class="btn btn-primary" onclick="submitLearning()">Save</button>
+  `);
+}
+
+async function submitLearning() {
+  await api('/api/strategy/learnings', { method: 'POST', body: JSON.stringify({
+    category: document.getElementById('l-cat').value,
+    title: document.getElementById('l-title').value,
+    description: document.getElementById('l-desc').value,
+    source: document.getElementById('l-source').value,
+  })});
+  hideModal(); loadLearnings();
+}
+
+// --- Changelog ---
+async function loadChangelog() {
+  const type = document.getElementById('changelog-filter')?.value || '';
+  const params = type ? `?type=${type}` : '';
+  const items = await api('/api/strategy/changelog' + params);
+
+  document.getElementById('changelog-list').innerHTML = items.length ? items.map(c => `
+    <div class="list-item">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="list-item-title">${c.title}</div>
+        <div style="display:flex;gap:6px"><span class="tag tag-blue">${c.type}</span><span style="font-size:11px;color:var(--text3)">${new Date(c.created_at).toLocaleDateString()}</span></div>
+      </div>
+      ${c.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${c.description}</div>` : ''}
+      ${c.impact ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">Impact: ${c.impact}</div>` : ''}
+    </div>
+  `).join('') : '<div class="empty">No changelog entries yet</div>';
+}
+
+function showAddChange() {
+  showModal('Add Changelog Entry', `
+    <div class="form-group"><label>Type</label><select id="c-type"><option>decision</option><option>change</option><option>launch</option><option>finding</option><option>rollback</option></select></div>
+    <div class="form-group"><label>Title</label><input type="text" id="c-title"></div>
+    <div class="form-group"><label>Description</label><textarea id="c-desc"></textarea></div>
+    <div class="form-group"><label>Impact</label><input type="text" id="c-impact"></div>
+    <button class="btn btn-primary" onclick="submitChange()">Save</button>
+  `);
+}
+
+async function submitChange() {
+  await api('/api/strategy/changelog', { method: 'POST', body: JSON.stringify({
+    type: document.getElementById('c-type').value,
+    title: document.getElementById('c-title').value,
+    description: document.getElementById('c-desc').value,
+    impact: document.getElementById('c-impact').value,
+  })});
+  hideModal(); loadChangelog();
+}
+
+// --- Search ---
+async function runSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  document.getElementById('search-results').innerHTML = '<div class="spinner"></div>';
+  const r = await api('/api/search/?q=' + encodeURIComponent(q));
+
+  let html = '';
+  for (const [source, items] of Object.entries(r.sources || {})) {
+    if (items.error) {
+      html += `<div class="card" style="margin-bottom:12px"><h3>${source}</h3><div style="color:var(--text3);font-size:12px">${items.error}</div></div>`;
+      continue;
+    }
+    const list = Array.isArray(items) ? items : (items.documents || []).map((d, i) => ({ text: d, distance: items.distances?.[i] }));
+    if (!list.length) continue;
+    html += `<div class="card" style="margin-bottom:12px"><h3 style="color:var(--text)">${source} <span class="count">(${list.length})</span></h3>`;
+    html += list.slice(0, 10).map(item => {
+      const title = item.title || item.text?.substring(0, 100) || JSON.stringify(item).substring(0, 100);
+      return `<div class="list-item"><div class="list-item-title">${title}</div></div>`;
+    }).join('');
+    html += '</div>';
+  }
+  document.getElementById('search-results').innerHTML = html || '<div class="empty">No results found</div>';
+}
+
+// --- Modal ---
+function showModal(title, content) {
+  document.getElementById('modal-content').innerHTML = `<h3>${title}</h3>${content}<div style="margin-top:12px;text-align:right"><button class="btn" onclick="hideModal()">Cancel</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+function hideModal() { document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) hideModal(); });
+
+// --- Health Check ---
+async function checkHealth() {
+  try {
+    const r = await api('/health');
+    document.getElementById('health-indicator').innerHTML = r.status === 'ok' ? '<span style="color:var(--green)">Connected</span>' : '<span style="color:var(--red)">Error</span>';
+  } catch {
+    document.getElementById('health-indicator').innerHTML = '<span style="color:var(--red)">Offline</span>';
+  }
+}
+
+// --- Init ---
+loadDashboard();
+checkHealth();
+</script>
+</body>
+</html>
