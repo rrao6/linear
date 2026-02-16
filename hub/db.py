@@ -223,6 +223,14 @@ CREATE TABLE IF NOT EXISTS event_log (
     details TEXT DEFAULT '{}',      -- JSON blob
     created_at TEXT NOT NULL
 );
+
+-- AI-generated insights
+CREATE TABLE IF NOT EXISTS ai_insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,            -- sentiment_trends, competitive_position, data_anomalies, weekly_brief, experiments
+    content_json TEXT NOT NULL,    -- JSON blob with structured analysis
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -594,6 +602,16 @@ def create_prd(topic: str, content_md: str, status: str = "draft") -> int:
         )
         return cur.lastrowid
 
+# --- AI Insights ---
+
+def save_insight(type: str, content: dict) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO ai_insights (type, content_json, created_at) VALUES (?, ?, ?)",
+            (type, json.dumps(content, default=str), now_iso()),
+        )
+        return cur.lastrowid
+
 
 def get_prds(status: str = None, limit: int = 100) -> list:
     with get_db() as conn:
@@ -804,6 +822,34 @@ def get_insights(limit: int = 100) -> list:
     with get_db() as conn:
         return [dict(r) for r in conn.execute(
             "SELECT * FROM insights ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
+
+
+def get_latest_ai_insight(type: str):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM ai_insights WHERE type = ? ORDER BY created_at DESC LIMIT 1",
+            (type,),
+        ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["content_json"] = json.loads(result["content_json"])
+        return result
+
+
+def get_ai_insights(type: str = None, limit: int = 20) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM ai_insights WHERE 1=1"
+        params = []
+        if type:
+            query += " AND type = ?"
+            params.append(type)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        rows = [dict(r) for r in conn.execute(query, params).fetchall()]
+        for r in rows:
+            r["content_json"] = json.loads(r["content_json"])
+        return rows
 
 
 # Initialize on import
