@@ -68,6 +68,13 @@ def update_work(item_id: int, update: WorkItemUpdate):
     return {"updated": True}
 
 
+@router.delete("/work/{item_id}")
+def delete_work(item_id: int):
+    """Delete a work item."""
+    db.delete_work_item(item_id)
+    return {"deleted": True}
+
+
 # --- Learnings ---
 
 class LearningCreate(BaseModel):

@@ -348,6 +348,12 @@ def get_work_items(status: str = None, type: str = None, limit: int = 100) -> li
         return [dict(r) for r in conn.execute(query, params).fetchall()]
 
 
+def delete_work_item(id: int) -> bool:
+    with get_db() as conn:
+        conn.execute("DELETE FROM work_items WHERE id = ?", (id,))
+    return True
+
+
 def update_work_item(id: int, **kwargs) -> bool:
     allowed = {"title", "description", "status", "priority", "owner", "tags", "metadata", "completed_at"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
