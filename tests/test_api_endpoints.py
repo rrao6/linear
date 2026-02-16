@@ -567,6 +567,67 @@ if named_result and "available" in named_result:
 
 
 # ============================================================
+# PHASE 8: Test new intel endpoints (history, diff, ingest)
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 8: Testing intel history, diff, and ingest endpoints")
+print("=" * 60)
+
+# GET /api/intel/history — list all past scans with counts
+history = test_get("GET /api/intel/history", "/api/intel/history", expect_type=list)
+if history:
+    report("Intel history has entries", len(history) > 0, f"found {len(history)} scan runs")
+    first = history[0]
+    report("History entry has date", "date" in first, f"keys={list(first.keys())}")
+    report("History entry has article_count", "article_count" in first,
+           f"article_count={first.get('article_count')}")
+    report("History entry has threat_count", "threat_count" in first,
+           f"threat_count={first.get('threat_count')}")
+    report("History entry has opportunity_count", "opportunity_count" in first,
+           f"opportunity_count={first.get('opportunity_count')}")
+
+# GET /api/intel/diff — compare latest two scans
+diff = test_get("GET /api/intel/diff", "/api/intel/diff")
+if diff:
+    if "error" not in diff:
+        report("Diff has latest/previous refs", "latest" in diff and "previous" in diff,
+               f"latest={diff.get('latest', {}).get('run_id')}, prev={diff.get('previous', {}).get('run_id')}")
+        report("Diff has summary", "summary" in diff, f"summary={diff.get('summary')}")
+        report("Diff has new_intel list", isinstance(diff.get("new_intel"), list),
+               f"new_intel_count={len(diff.get('new_intel', []))}")
+        report("Diff has new_threats list", isinstance(diff.get("new_threats"), list),
+               f"new_threats_count={len(diff.get('new_threats', []))}")
+    else:
+        report("Diff returns error (need 2+ runs)", "runs_available" in diff,
+               f"error={diff.get('error')}")
+
+# POST /api/intel/ingest — manually ingest a scan run
+if history and len(history) > 0:
+    ingest_date = history[0]["date"]
+    ingest_run_id = history[0]["run_id"]
+    ingest_result = test_post("POST /api/intel/ingest (manual)",
+        f"/api/intel/ingest/{ingest_date}/{ingest_run_id}", {})
+    if ingest_result:
+        report("Ingest returned status", ingest_result.get("status") == "ingested",
+               f"threats={ingest_result.get('threats')}, opps={ingest_result.get('opportunities')}")
+        report("Ingest created work items", isinstance(ingest_result.get("work_item_ids"), list),
+               f"count={len(ingest_result.get('work_item_ids', []))}")
+
+    # Verify work items were created
+    work_items = test_get("GET /api/strategy/work?type=threat", "/api/strategy/work?type=threat", expect_type=list)
+    if work_items:
+        ci_threats = [w for w in work_items if "ci_scan" in (w.get("tags") or "")]
+        report("Threat work items created from scan", len(ci_threats) > 0,
+               f"found {len(ci_threats)} threat work items with ci_scan tag")
+
+    work_items_opp = test_get("GET /api/strategy/work?type=opportunity", "/api/strategy/work?type=opportunity", expect_type=list)
+    if work_items_opp:
+        ci_opps = [w for w in work_items_opp if "ci_scan" in (w.get("tags") or "")]
+        report("Opportunity work items created from scan", len(ci_opps) > 0,
+               f"found {len(ci_opps)} opportunity work items with ci_scan tag")
+
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print("\n" + "=" * 60)
