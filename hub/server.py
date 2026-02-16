@@ -56,7 +56,6 @@ async def lifespan(app):
     except Exception as e:
         logger.warning("QA scheduler failed to stop: %s", e)
 
-
 app = FastAPI(
     title="Linear Hub",
     description="SSOT for Tubi Linear TV strategy, data, competitive intelligence, and operations",
