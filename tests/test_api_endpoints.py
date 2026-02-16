@@ -413,6 +413,160 @@ test_post("POST /api/sentiment/feedback (single)",
 
 
 # ============================================================
+# PHASE 6: Test Sprout Social collection endpoint
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 6: Testing Sprout Social collection endpoint")
+print("=" * 60)
+
+# POST /api/sentiment/collect/sprout — basic collection
+sprout_payload = {
+    "messages": [
+        {"network": "twitter", "text": "Tubi's live channels are surprisingly good for free TV!",
+         "sentiment": "positive", "author": "@streaming_watcher",
+         "url": "https://twitter.com/example/status/1",
+         "profile_name": "Streaming Watcher", "created_time": "2026-02-14T10:30:00Z",
+         "tags": ["tubi", "live_tv", "free"],
+         "metrics": {"likes": 42, "retweets": 8, "impressions": 1200}},
+        {"network": "instagram", "text": "Why does Tubi buffer so much on the live channels? Fix this please.",
+         "sentiment": "negative", "author": "cord_cutter_ig",
+         "url": "", "profile_name": "Cord Cutter",
+         "created_time": "2026-02-14T14:00:00Z",
+         "tags": ["tubi", "buffering", "quality"],
+         "metrics": {"likes": 15, "comments": 3}},
+        {"network": "facebook", "text": "Just discovered Tubi has a linear TV guide. Reminds me of the old cable days but free.",
+         "sentiment": "positive", "author": "fb_user_123",
+         "url": "https://facebook.com/post/example",
+         "profile_name": "Free TV Fan", "created_time": "2026-02-14T18:45:00Z",
+         "tags": ["tubi", "epg", "nostalgia", "free"],
+         "metrics": {"likes": 87, "shares": 12, "comments": 5}},
+    ],
+    "topic": "Tubi Linear TV Mentions",
+    "date_range": "2026-02-01 to 2026-02-15",
+}
+
+sprout_result = test_post("POST /api/sentiment/collect/sprout (3 messages)",
+    "/api/sentiment/collect/sprout",
+    sprout_payload,
+    expect_key="count")
+if sprout_result:
+    report("Sprout collect count = 3", sprout_result.get("count") == 3,
+           f"expected 3, got {sprout_result.get('count')}")
+    report("Sprout collect returns ids", len(sprout_result.get("ids", [])) == 3,
+           f"ids={sprout_result.get('ids')}")
+    report("Sprout collect returns topic", sprout_result.get("topic") == "Tubi Linear TV Mentions",
+           f"topic={sprout_result.get('topic')}")
+
+# POST /api/sentiment/collect/sprout — empty batch
+empty_sprout = test_post("POST /api/sentiment/collect/sprout (empty batch)",
+    "/api/sentiment/collect/sprout",
+    {"messages": []},
+    expect_key="count")
+if empty_sprout:
+    report("Sprout empty batch count = 0", empty_sprout.get("count") == 0,
+           f"count={empty_sprout.get('count')}")
+
+# POST /api/sentiment/collect/sprout — single message, minimal fields
+minimal_sprout = test_post("POST /api/sentiment/collect/sprout (minimal fields)",
+    "/api/sentiment/collect/sprout",
+    {"messages": [{"text": "Tubi linear is neat"}]},
+    expect_key="count")
+if minimal_sprout:
+    report("Sprout minimal msg count = 1", minimal_sprout.get("count") == 1,
+           f"count={minimal_sprout.get('count')}")
+
+# Verify sprout data appears in sentiment feed
+sprout_feed = test_get("GET /api/sentiment/feed?source=sprout:twitter",
+    "/api/sentiment/feed?source=sprout:twitter", expect_type=list)
+if sprout_feed:
+    report("Sprout twitter items in feed", len(sprout_feed) >= 1,
+           f"found {len(sprout_feed)} sprout:twitter items")
+
+# Verify sprout data in summary breakdown
+sprout_summary = test_get("GET /api/sentiment/summary (after sprout)",
+    "/api/sentiment/summary")
+if sprout_summary:
+    by_source = sprout_summary.get("by_source", {})
+    has_sprout = any(k.startswith("sprout:") for k in by_source) or "sprout" in by_source
+    report("Sprout source in summary breakdown", has_sprout,
+           f"sources={list(by_source.keys())}")
+
+
+# ============================================================
+# PHASE 7: Test previously untested endpoints
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 7: Testing previously untested endpoints")
+print("=" * 60)
+
+# POST /api/intel/scan — trigger a scan (background, won't actually run pipeline)
+scan_result = test_post("POST /api/intel/scan (trigger scan)",
+    "/api/intel/scan",
+    {},
+    expect_key="status")
+if scan_result:
+    report("Scan returns status=scan_started",
+           scan_result.get("status") == "scan_started",
+           f"status={scan_result.get('status')}")
+
+# POST /api/intel/scan with options
+scan_opts = test_post("POST /api/intel/scan?skip_analysis=true&competitor=pluto_tv",
+    "/api/intel/scan?skip_analysis=true&competitor=pluto_tv",
+    {},
+    expect_key="status")
+if scan_opts:
+    args = scan_opts.get("args", [])
+    report("Scan passes skip_analysis arg", "--skip-analysis" in args,
+           f"args={args}")
+    report("Scan passes competitor arg", "pluto_tv" in args,
+           f"args={args}")
+
+# GET /api/intel/run/{scan_date}/{run_id} — test with known run if available
+runs = test_get("GET /api/intel/runs (for run lookup)", "/api/intel/runs", expect_type=list)
+if runs and len(runs) > 0:
+    run_date = runs[0]["date"]
+    run_id = runs[0]["run_id"]
+    run_data = test_get(f"GET /api/intel/run/{run_date}/{run_id}",
+        f"/api/intel/run/{run_date}/{run_id}")
+    if run_data:
+        report("Run data has scan_date", run_data.get("scan_date") == run_date,
+               f"scan_date={run_data.get('scan_date')}")
+        report("Run data has run_id", run_data.get("run_id") == run_id,
+               f"run_id={run_data.get('run_id')}")
+else:
+    # No runs available — test with a fake date/id, expect empty result
+    run_data = test_get("GET /api/intel/run (no data)", "/api/intel/run/1970-01-01/fake_run")
+    report("Run with invalid id returns data dict", isinstance(run_data, dict),
+           f"type={type(run_data).__name__}")
+
+# POST /api/data/query — SQL query (will fail without Databricks, but endpoint should respond)
+query_result = test_post("POST /api/data/query (Databricks SQL)",
+    "/api/data/query",
+    {"sql": "SELECT 1 AS test_col", "limit": 10})
+if query_result:
+    # May return rows or error — either is a valid response from the endpoint
+    has_response = "rows" in query_result or "error" in query_result
+    report("Data query returns rows or error", has_response,
+           f"keys={list(query_result.keys())}")
+
+# POST /api/data/named — named query
+named_result = test_post("POST /api/data/named (named query)",
+    "/api/data/named",
+    {"name": "nonexistent_query", "days": 7})
+if named_result:
+    # Should return error for unknown query with available list
+    has_response = "error" in named_result or "rows" in named_result
+    report("Named query returns error or rows", has_response,
+           f"keys={list(named_result.keys())}")
+
+# POST /api/data/named — test with bad query name returns available list
+if named_result and "available" in named_result:
+    report("Named query error lists available queries",
+           len(named_result.get("available", [])) > 0,
+           f"available={named_result.get('available', [])[:5]}")
+
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print("\n" + "=" * 60)
