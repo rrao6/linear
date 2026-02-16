@@ -8,6 +8,8 @@ Usage:
 """
 
 import argparse
+import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -17,12 +19,22 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .config import HUB_PORT, HUB_HOST
-from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search, qa
+from .routers import dashboard, intel, data, sentiment, features, oem, strategy, search, qa, monitor
+from .monitoring import start_checker, stop_checker
+
+
+@asynccontextmanager
+async def lifespan(app):
+    start_checker(interval_seconds=1800)
+    yield
+    stop_checker()
+
 
 app = FastAPI(
     title="Linear Hub",
     description="SSOT for Tubi Linear TV strategy, data, competitive intelligence, and operations",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -42,6 +54,7 @@ app.include_router(oem.router)
 app.include_router(strategy.router)
 app.include_router(search.router)
 app.include_router(qa.router)
+app.include_router(monitor.router)
 
 # Static files
 STATIC_DIR = Path(__file__).parent / "static"

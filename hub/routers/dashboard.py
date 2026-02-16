@@ -276,7 +276,21 @@ def get_overview():
     # QA status indicator
     qa_status = _get_qa_status()
 
+    # Monitor summary
+    sources = db.get_data_sources()
+    sources_healthy = sum(1 for s in sources if s["status"] == "healthy")
+    sources_stale = sum(1 for s in sources if s["status"] == "stale")
+    sources_error = sum(1 for s in sources if s["status"] == "error")
+    alert_items = [w for w in work_items if w["type"] == "alert" and w["status"] == "open"]
+
     return {
+        "monitor": {
+            "sources_total": len(sources),
+            "sources_healthy": sources_healthy,
+            "sources_stale": sources_stale,
+            "sources_error": sources_error,
+            "open_alerts": len(alert_items),
+        },
         "kpis": kpis,
         "daily_trend": trend_data,
         "top_channels": channels_data,

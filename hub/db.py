@@ -153,6 +153,30 @@ CREATE TABLE IF NOT EXISTS qa_checks (
     error TEXT DEFAULT '',
     checked_at TEXT NOT NULL
 );
+
+-- Data source freshness tracking
+CREATE TABLE IF NOT EXISTS data_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_name TEXT NOT NULL UNIQUE,
+    last_run_at TEXT,
+    last_success_at TEXT,
+    last_error TEXT DEFAULT '',
+    items_collected INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'unknown',  -- healthy, stale, error, unknown
+    expected_interval_hours REAL DEFAULT 24,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Event log for monitoring
+CREATE TABLE IF NOT EXISTS event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,       -- collection, error, qa_check, worker_start, worker_complete, alert, heartbeat
+    source TEXT DEFAULT '',
+    message TEXT NOT NULL,
+    details TEXT DEFAULT '{}',      -- JSON blob
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -511,6 +535,103 @@ def set_cached_kpi(key: str, value) -> None:
             "INSERT OR REPLACE INTO kpi_cache (key, value, fetched_at) VALUES (?, ?, ?)",
             (key, json.dumps(value, default=str), now_iso()),
         )
+
+
+# --- Data Sources (Monitoring) ---
+
+def upsert_data_source(source_name: str, status: str = "unknown",
+                       last_error: str = "", items_collected: int = 0,
+                       expected_interval_hours: float = 24) -> int:
+    """Create or update a data source entry."""
+    ts = now_iso()
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM data_sources WHERE source_name = ?", (source_name,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """UPDATE data_sources SET status = ?, last_run_at = ?, last_error = ?,
+                   items_collected = ?, updated_at = ?
+                   WHERE source_name = ?""",
+                (status, ts, last_error, items_collected, ts, source_name)
+            )
+            if status == "healthy":
+                conn.execute(
+                    "UPDATE data_sources SET last_success_at = ? WHERE source_name = ?",
+                    (ts, source_name)
+                )
+            return existing["id"]
+        else:
+            cur = conn.execute(
+                """INSERT INTO data_sources (source_name, last_run_at, last_success_at, last_error,
+                   items_collected, status, expected_interval_hours, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (source_name, ts, ts if status == "healthy" else None, last_error,
+                 items_collected, status, expected_interval_hours, ts, ts)
+            )
+            return cur.lastrowid
+
+
+def get_data_sources() -> list:
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM data_sources ORDER BY source_name").fetchall()]
+
+
+def get_data_source(source_name: str):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM data_sources WHERE source_name = ?", (source_name,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def update_data_source_status(source_name: str, status: str):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE data_sources SET status = ?, updated_at = ? WHERE source_name = ?",
+            (status, now_iso(), source_name)
+        )
+
+
+# --- Event Log (Monitoring) ---
+
+def log_event(event_type: str, message: str, source: str = "",
+              details: dict = None) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO event_log (event_type, source, message, details, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (event_type, source, message, json.dumps(details or {}), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_event_log(limit: int = 100, event_type: str = None) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM event_log WHERE 1=1"
+        params = []
+        if event_type:
+            query += " AND event_type = ?"
+            params.append(event_type)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def get_table_row_counts() -> dict:
+    """Return row counts for all tables."""
+    tables = ["work_items", "learnings", "data_verifications", "feedback",
+              "experiments", "oem_snapshots", "gracenote_mappings", "query_history",
+              "change_log", "kpi_cache", "data_sources", "event_log"]
+    counts = {}
+    with get_db() as conn:
+        for t in tables:
+            try:
+                counts[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            except Exception:
+                counts[t] = 0
+    return counts
 
 
 # Initialize on import
