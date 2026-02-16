@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
 
 from .. import db
+from ..config import SPROUT_SOCIAL_API_KEY
 
 router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
 
@@ -93,9 +94,9 @@ def add_feedback_batch(batch: FeedbackBatch):
     return {"ids": ids, "count": len(ids)}
 
 
-@router.post("/collect/sprout")
-def collect_sprout(payload: SproutCollectPayload):
-    """Ingest social listening data from Sprout Social.
+@router.post("/collect/sprout/ingest")
+def ingest_sprout(payload: SproutCollectPayload):
+    """Ingest social listening data from Sprout Social webhook/manual push.
 
     Converts Sprout messages into feedback items, mapping network names
     to the source field and preserving Sprout-specific metrics in metadata.
@@ -139,3 +140,54 @@ def sentiment_topics():
             topic_counts[t] = topic_counts.get(t, 0) + 1
     sorted_topics = sorted(topic_counts.items(), key=lambda x: -x[1])
     return [{"topic": t, "count": c} for t, c in sorted_topics]
+
+
+class SproutCollectRequest(BaseModel):
+    customer_id: Optional[str] = None
+    days: int = 3
+    limit: int = 50
+    probe: bool = False
+
+
+def _run_sprout_collection(customer_id, days, limit):
+    """Background task: collect from Sprout Social and store results."""
+    from ..collectors.sprout import collect_mentions
+    items = collect_mentions(customer_id=customer_id, days=days, limit=limit)
+    for item in items:
+        topics = item.get("topics", [])
+        db.create_feedback(
+            source=item["source"],
+            text=item["text"],
+            sentiment=item.get("sentiment", "neutral"),
+            sentiment_score=item.get("sentiment_score", 0.0),
+            topics=topics,
+            author=item.get("author", ""),
+            url=item.get("url", ""),
+            metadata=item.get("metadata", {}),
+        )
+    return items
+
+
+@router.post("/collect/sprout")
+def collect_sprout(req: SproutCollectRequest, background_tasks: BackgroundTasks):
+    """Trigger Sprout Social sentiment collection.
+
+    If probe=true, probes the API to discover available endpoints.
+    Otherwise, collects mentions and stores them as feedback.
+    """
+    if not SPROUT_SOCIAL_API_KEY:
+        return {"status": "error", "message": "SPROUT_SOCIAL_API_KEY not configured"}
+
+    if req.probe:
+        from ..collectors.sprout import probe_api
+        result = probe_api()
+        return {"status": "ok", "probe": result}
+
+    background_tasks.add_task(
+        _run_sprout_collection, req.customer_id, req.days, req.limit,
+    )
+    return {
+        "status": "ok",
+        "message": f"Sprout Social collection started (last {req.days} days, limit {req.limit})",
+        "source": "sprout",
+    }

@@ -28,6 +28,9 @@ DATABRICKS_TOKEN = os.environ.get("DATABRICKS_TOKEN", "")
 # OpenAI
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
+# Sprout Social
+SPROUT_SOCIAL_API_KEY = os.environ.get("SPROUT_SOCIAL_API_KEY", "")
+
 # Server
 HUB_PORT = int(os.environ.get("HUB_PORT", "8888"))
 HUB_HOST = os.environ.get("HUB_HOST", "localhost")
