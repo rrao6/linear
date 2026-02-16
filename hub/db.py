@@ -4,7 +4,6 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 
 from .config import HUB_DB_PATH
 
