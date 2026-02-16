@@ -1,0 +1,281 @@
+# Competitive Intelligence Scanner Configuration
+# Adapted from Tubi Radar multi-agent architecture
+
+global:
+  lookback_hours: 72
+  max_articles_per_feed: 25
+  feed_timeout: 15
+  max_concurrent_feeds: 10
+  min_relevance_score: 4.0
+  min_impact_score: 4.0
+  enable_web_search: true
+  models:
+    reasoning: "gpt-4o"
+    fast: "gpt-4o-mini"
+    embedding: "text-embedding-3-small"
+
+# Our company
+tubi:
+  id: tubi
+  name: "Tubi"
+  channel_count: 340
+  feeds:
+    - label: tubi_google_news
+      url: "https://news.google.com/rss/search?q=Tubi+streaming"
+    - label: tubi_press
+      url: "https://news.google.com/rss/search?q=Tubi+TV+linear+channels"
+    - label: tubi_fox
+      url: "https://news.google.com/rss/search?q=Tubi+Fox+Sports"
+  search_queries:
+    - "Tubi streaming news 2025 2026"
+    - "Tubi linear channels update"
+    - "Tubi Fox Sports partnership"
+    - "Tubi Super Bowl streaming"
+    - "Tubi new channels launch"
+
+# Tier 1: Platform-Integrated FAST
+competitors:
+  - id: amazon_fire_tv
+    name: "Amazon Fire TV Channels"
+    tier: 1
+    category: platform_fast
+    channel_url: null  # No public channel page
+    feeds:
+      - label: amazon_fire_tv_news
+        url: "https://news.google.com/rss/search?q=Amazon+Fire+TV+channels"
+      - label: amazon_live_tab
+        url: "https://news.google.com/rss/search?q=Amazon+Fire+TV+live+tab"
+    search_queries:
+      - "Amazon Fire TV channels update 2025"
+      - "Amazon Fire TV live tab changes"
+      - "Amazon free streaming channels"
+
+  - id: samsung_tv_plus
+    name: "Samsung TV Plus"
+    tier: 1
+    category: platform_fast
+    channel_url: "https://www.samsung.com/us/tvplus/"
+    feeds:
+      - label: samsung_tv_plus_news
+        url: "https://news.google.com/rss/search?q=Samsung+TV+Plus"
+      - label: samsung_newsroom
+        url: "https://news.google.com/rss/search?q=Samsung+TV+Plus+channels"
+    search_queries:
+      - "Samsung TV Plus new channels 2025"
+      - "Samsung TV Plus update"
+
+  - id: roku_channel
+    name: "Roku Channel"
+    tier: 1
+    category: platform_fast
+    channel_url: "https://therokuchannel.roku.com/live"
+    feeds:
+      - label: roku_news
+        url: "https://news.google.com/rss/search?q=Roku+Channel+streaming"
+      - label: roku_sports
+        url: "https://news.google.com/rss/search?q=Roku+Sports+Hub"
+      - label: roku_blog
+        url: "https://blog.roku.com/feed"
+    search_queries:
+      - "Roku Channel update 2025"
+      - "Roku Sports Hub 2025"
+      - "Roku live TV guide"
+
+  - id: lg_channels
+    name: "LG Channels"
+    tier: 1
+    category: platform_fast
+    channel_url: "https://www.lg.com/us/lg-channels/"
+    feeds:
+      - label: lg_channels_news
+        url: "https://news.google.com/rss/search?q=LG+Channels+FAST"
+    search_queries:
+      - "LG Channels update 2025"
+
+  - id: vizio_watchfree
+    name: "Vizio WatchFree+"
+    tier: 1
+    category: platform_fast
+    channel_url: "https://www.vizio.com/en/watchfreeplus"
+    feeds:
+      - label: vizio_news
+        url: "https://news.google.com/rss/search?q=Vizio+WatchFree"
+      - label: walmart_vizio
+        url: "https://news.google.com/rss/search?q=Walmart+Vizio+streaming"
+    search_queries:
+      - "Vizio WatchFree update 2025"
+      - "Walmart Vizio shoppable TV"
+
+  - id: google_tv
+    name: "Google TV Free Channels"
+    tier: 1
+    category: platform_fast
+    feeds:
+      - label: google_tv_news
+        url: "https://news.google.com/rss/search?q=Google+TV+free+channels"
+    search_queries:
+      - "Google TV free channels Freeplay 2025"
+      - "Google TV live tab FAST"
+
+  - id: tcl_plus
+    name: "TCL+"
+    tier: 1
+    category: platform_fast
+    feeds:
+      - label: tcl_news
+        url: "https://news.google.com/rss/search?q=TCL+streaming+channels"
+    search_queries:
+      - "TCL+ streaming channels 2025"
+
+  # Tier 2: Pure-App FAST
+  - id: pluto_tv
+    name: "Pluto TV"
+    tier: 2
+    category: pure_app_fast
+    channel_url: "https://pluto.tv/en/live-tv"
+    feeds:
+      - label: pluto_news
+        url: "https://news.google.com/rss/search?q=Pluto+TV+channels"
+      - label: pluto_paramount
+        url: "https://news.google.com/rss/search?q=Pluto+TV+Paramount"
+    search_queries:
+      - "Pluto TV channels update 2025"
+      - "Pluto TV Paramount integration"
+      - "Pluto TV new channels launch"
+
+  - id: xumo
+    name: "Xumo Play"
+    tier: 2
+    category: pure_app_fast
+    channel_url: "https://play.xumo.com/channels"
+    feeds:
+      - label: xumo_news
+        url: "https://news.google.com/rss/search?q=Xumo+streaming"
+    search_queries:
+      - "Xumo channels update 2025"
+
+  - id: sling_freestream
+    name: "Sling Freestream"
+    tier: 2
+    category: pure_app_fast
+    feeds:
+      - label: sling_news
+        url: "https://news.google.com/rss/search?q=Sling+Freestream"
+    search_queries:
+      - "Sling Freestream channels 2025"
+      - "Sling free streaming update"
+
+  - id: plex
+    name: "Plex"
+    tier: 2
+    category: pure_app_fast
+    feeds:
+      - label: plex_news
+        url: "https://news.google.com/rss/search?q=Plex+live+TV+channels"
+    search_queries:
+      - "Plex free channels 2025"
+
+  # Tier 3: vMVPD (Premier indirect competitors)
+  - id: youtube_tv
+    name: "YouTube TV"
+    tier: 3
+    category: vmvpd
+    feeds:
+      - label: youtube_tv_news
+        url: "https://news.google.com/rss/search?q=YouTube+TV+update"
+      - label: youtube_tv_sports
+        url: "https://news.google.com/rss/search?q=YouTube+TV+sports"
+      - label: youtube_tv_nfl
+        url: "https://news.google.com/rss/search?q=YouTube+TV+NFL+Sunday+Ticket"
+    search_queries:
+      - "YouTube TV subscribers 2025"
+      - "YouTube TV new features"
+      - "YouTube TV NFL Sunday Ticket"
+      - "YouTube TV price change"
+
+  - id: hulu_live
+    name: "Hulu + Live TV"
+    tier: 3
+    category: vmvpd
+    feeds:
+      - label: hulu_live_news
+        url: "https://news.google.com/rss/search?q=Hulu+Live+TV"
+    search_queries:
+      - "Hulu Live TV update 2025"
+
+  - id: fubo
+    name: "Fubo"
+    tier: 3
+    category: vmvpd
+    feeds:
+      - label: fubo_news
+        url: "https://news.google.com/rss/search?q=Fubo+TV+streaming"
+    search_queries:
+      - "Fubo TV subscribers 2025"
+      - "Fubo sports streaming"
+
+  # Tier 4: SVOD with linear
+  - id: netflix
+    name: "Netflix"
+    tier: 4
+    category: svod_linear
+    feeds:
+      - label: netflix_news
+        url: "https://news.google.com/rss/search?q=Netflix+ad+tier+live"
+    search_queries:
+      - "Netflix ad tier growth 2025"
+      - "Netflix live events streaming"
+
+  - id: peacock
+    name: "Peacock"
+    tier: 4
+    category: svod_linear
+    feeds:
+      - label: peacock_news
+        url: "https://news.google.com/rss/search?q=Peacock+streaming+live"
+    search_queries:
+      - "Peacock free tier 2025"
+      - "Peacock live sports NFL"
+
+  - id: espn_standalone
+    name: "ESPN (Standalone)"
+    tier: 4
+    category: svod_linear
+    feeds:
+      - label: espn_news
+        url: "https://news.google.com/rss/search?q=ESPN+standalone+streaming+launch"
+    search_queries:
+      - "ESPN standalone streaming launch date price"
+      - "ESPN streaming app 2025"
+
+# Industry-wide feeds
+industry_feeds:
+  - label: fast_market
+    url: "https://news.google.com/rss/search?q=FAST+channels+streaming"
+  - label: ctv_advertising
+    url: "https://news.google.com/rss/search?q=CTV+advertising+streaming"
+  - label: cord_cutting
+    url: "https://news.google.com/rss/search?q=cord+cutting+live+TV+2025"
+  - label: nielsen_gauge
+    url: "https://news.google.com/rss/search?q=Nielsen+Gauge+streaming+share"
+  - label: streaming_wars
+    url: "https://news.google.com/rss/search?q=streaming+wars+2025"
+  - label: fast_revenue
+    url: "https://news.google.com/rss/search?q=FAST+revenue+ad+supported+streaming"
+
+# Dedicated industry publication feeds
+publication_feeds:
+  - label: variety_streaming
+    url: "https://variety.com/v/digital/feed/"
+  - label: deadline_tv
+    url: "https://deadline.com/category/tv/feed/"
+  - label: cord_cutters_news
+    url: "https://cordcuttersnews.com/feed/"
+  - label: digiday
+    url: "https://digiday.com/feed/"
+  - label: the_verge
+    url: "https://www.theverge.com/rss/index.xml"
+  - label: streamtv_insider
+    url: "https://www.streamtvinsider.com/rss.xml"
+  - label: adweek
+    url: "https://www.adweek.com/feed/"

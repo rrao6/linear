@@ -1,0 +1,31 @@
+{
+  "name": "linear-hub-skills",
+  "owner": {
+    "name": "Rahul Rao",
+    "email": "rrao@tubi.tv"
+  },
+  "metadata": {
+    "description": "Skills for Tubi Linear/FAST TV intelligence, data analysis, and strategy",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "linear-data",
+      "description": "Query Databricks for linear TV metrics, user behavior, session attribution, funnel analysis",
+      "source": "./plugins/linear-data",
+      "strict": false
+    },
+    {
+      "name": "linear-research",
+      "description": "Competitive intelligence scanning, market research, OEM placement tracking for FAST/Linear TV",
+      "source": "./plugins/linear-research",
+      "strict": false
+    },
+    {
+      "name": "linear-strategy",
+      "description": "PRD generation, strategy synthesis, decision logging, opportunity tracking",
+      "source": "./plugins/linear-strategy",
+      "strict": false
+    }
+  ]
+}

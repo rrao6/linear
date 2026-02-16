@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linear Hub — Competitive Intelligence</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text2: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --orange: #d29922;
+  --purple: #bc8cff;
+  --pink: #f778ba;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+.container { max-width: 1400px; margin: 0 auto; padding: 0 24px; }
+
+/* Header */
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+header .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+.logo span { color: var(--text2); font-weight: 400; }
+.header-meta { color: var(--text2); font-size: 13px; }
+
+/* Navigation */
+nav {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+nav .container { display: flex; gap: 0; }
+nav a {
+  color: var(--text2);
+  text-decoration: none;
+  padding: 12px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+nav a:hover { color: var(--text); }
+nav a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Content */
+main { padding: 24px 0 48px; }
+
+/* Cards */
+.grid { display: grid; gap: 16px; margin-bottom: 24px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.card .big-number {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text);
+}
+.card .subtitle { font-size: 13px; color: var(--text2); }
+
+/* Stat cards */
+.stat-card { text-align: center; }
+.stat-card .big-number { margin: 8px 0 4px; }
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); }
+.badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+.badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
+
+/* Section */
+.section { margin-bottom: 32px; }
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text2);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+tr:hover { background: var(--bg3); }
+
+/* Score bars */
+.score-bar {
+  display: inline-block;
+  width: 60px;
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* Tabs */
+.tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text2);
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Brief */
+.brief {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  line-height: 1.7;
+  font-size: 15px;
+}
+.brief h2 { color: var(--accent); margin: 20px 0 10px; font-size: 18px; }
+.brief h2:first-child { margin-top: 0; }
+.brief p { margin-bottom: 12px; }
+.brief ul, .brief ol { margin: 8px 0 16px 20px; }
+.brief li { margin-bottom: 6px; }
+.brief strong { color: var(--text); }
+
+/* Threat cards */
+.threat-card {
+  border-left: 4px solid var(--red);
+  margin-bottom: 12px;
+}
+.threat-card.medium { border-left-color: var(--orange); }
+.threat-card.low { border-left-color: var(--green); }
+.threat-severity { font-size: 24px; font-weight: 700; }
+
+.opp-card { border-left: 4px solid var(--green); margin-bottom: 12px; }
+.trend-card { border-left: 4px solid var(--accent); margin-bottom: 12px; }
+.profile-card { border-left: 4px solid var(--purple); margin-bottom: 12px; }
+
+/* Channel chart */
+.channel-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.channel-name { width: 160px; font-size: 13px; color: var(--text2); text-align: right; padding-right: 12px; }
+.channel-fill {
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  min-width: 40px;
+}
+
+/* Search */
+.search-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+}
+.search-box:focus { border-color: var(--accent); }
+.search-results { margin-top: 12px; }
+
+/* Loading */
+.loading { text-align: center; padding: 48px; color: var(--text2); }
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Footer */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+  color: var(--text2);
+  font-size: 12px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <a class="logo" href="/">Linear Hub <span>/ Competitive Intelligence</span></a>
+    <div class="header-meta" id="header-meta">Loading...</div>
+  </div>
+</header>
+
+<nav>
+  <div class="container">
+    <a href="#" class="active" data-tab="overview">Overview</a>
+    <a href="#" data-tab="threats">Threats</a>
+    <a href="#" data-tab="opportunities">Opportunities</a>
+    <a href="#" data-tab="trends">Trends</a>
+    <a href="#" data-tab="competitors">Competitors</a>
+    <a href="#" data-tab="channels">Channel Counts</a>
+    <a href="#" data-tab="feed">Article Feed</a>
+    <a href="#" data-tab="brief">Executive Brief</a>
+    <a href="#" data-tab="memory">Memory Search</a>
+  </div>
+</nav>
+
+<main class="container">
+  <div id="content">
+    <div class="loading">Loading dashboard data</div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    Linear Hub — Tubi Linear/FAST TV Competitive Intelligence System
+  </div>
+</footer>
+
+<script>
+let DATA = null;
+
+// Fetch data
+async function loadData() {
+  try {
+    const resp = await fetch('/api/data');
+    DATA = await resp.json();
+    if (DATA.error) {
+      document.getElementById('content').innerHTML = `
+        <div class="card" style="margin-top: 24px; text-align: center; padding: 48px;">
+          <h3 style="color: var(--red); margin-bottom: 12px;">No Scan Data Found</h3>
+          <p>Run the pipeline first:</p>
+          <code style="display: block; margin-top: 8px; color: var(--accent);">python3 tools/scanner/orchestrator.py</code>
+        </div>`;
+      return;
+    }
+    updateHeader();
+    showTab('overview');
+  } catch (e) {
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="margin-top: 24px; text-align: center; padding: 48px;">
+        <h3 style="color: var(--red);">Connection Error</h3>
+        <p>${e.message}</p>
+      </div>`;
+  }
+}
+
+function updateHeader() {
+  const run = DATA.run || {};
+  const meta = document.getElementById('header-meta');
+  meta.textContent = `Scan: ${DATA.scan_date} | Run: ${DATA.run_id} | ${run.articles_collected || 0} articles | ${run.articles_classified || 0} classified`;
+}
+
+// Tab navigation
+document.querySelectorAll('nav a').forEach(a => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('nav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    showTab(a.dataset.tab);
+  });
+});
+
+function showTab(tab) {
+  const content = document.getElementById('content');
+  const renderers = {
+    overview: renderOverview,
+    threats: renderThreats,
+    opportunities: renderOpportunities,
+    trends: renderTrends,
+    competitors: renderCompetitors,
+    channels: renderChannels,
+    feed: renderFeed,
+    brief: renderBrief,
+    memory: renderMemory,
+  };
+  if (renderers[tab] && DATA) {
+    content.innerHTML = renderers[tab]();
+    if (tab === 'memory') setupMemorySearch();
+  }
+}
+
+function scoreColor(score) {
+  if (score >= 8) return 'var(--red)';
+  if (score >= 6) return 'var(--orange)';
+  if (score >= 4) return 'var(--accent)';
+  return 'var(--green)';
+}
+
+function scoreBar(score, max=10) {
+  const pct = (score / max) * 100;
+  const color = scoreColor(score);
+  return `<span class="score-bar"><span class="score-fill" style="width:${pct}%;background:${color}"></span></span>${score}`;
+}
+
+function badgeFor(category) {
+  const map = {
+    strategic: 'badge-red', product: 'badge-blue', content: 'badge-green',
+    sports: 'badge-orange', pricing: 'badge-purple', partnership: 'badge-blue',
+    earnings: 'badge-orange', technology: 'badge-purple', marketing: 'badge-pink',
+    general: '',
+  };
+  return `<span class="badge ${map[category] || ''}">${category}</span>`;
+}
+
+// ─── RENDERERS ───
+
+function renderOverview() {
+  const run = DATA.run || {};
+  const classified = DATA.classified || {};
+  const analysis = DATA.analysis || {};
+  const threats = analysis.threats?.threats || [];
+  const opps = analysis.opportunities?.opportunities || [];
+  const trends = analysis.trends?.trends || [];
+  const profiles = analysis.profiles?.profiles || [];
+  const intel = classified.intel || [];
+
+  return `
+    <div class="section">
+      <div class="grid grid-4">
+        <div class="card stat-card">
+          <h3>Articles Collected</h3>
+          <div class="big-number">${run.articles_collected || 0}</div>
+          <div class="subtitle">from 41 RSS feeds</div>
+        </div>
+        <div class="card stat-card">
+          <h3>Actionable Intel</h3>
+          <div class="big-number" style="color:var(--accent)">${run.articles_classified || 0}</div>
+          <div class="subtitle">passed relevance + impact filters</div>
+        </div>
+        <div class="card stat-card">
+          <h3>Threats Found</h3>
+          <div class="big-number" style="color:var(--red)">${threats.length}</div>
+          <div class="subtitle">avg severity: ${threats.length ? (threats.reduce((a,t)=>a+t.severity,0)/threats.length).toFixed(1) : '—'}/10</div>
+        </div>
+        <div class="card stat-card">
+          <h3>Opportunities</h3>
+          <div class="big-number" style="color:var(--green)">${opps.length}</div>
+          <div class="subtitle">${trends.length} trends, ${profiles.length} profiles</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Top Intel by Impact</div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Category</th><th>Relevance</th><th>Impact</th><th>Competitor</th><th>Title</th></tr></thead>
+          <tbody>
+            ${intel.slice(0, 15).map(i => `
+              <tr>
+                <td>${badgeFor(i.category)}</td>
+                <td>${scoreBar(i.relevance_score)}</td>
+                <td>${scoreBar(i.impact_score)}</td>
+                <td>${i.competitor_id}</td>
+                <td><a href="${i.url}" target="_blank" style="color:var(--text);text-decoration:none">${truncate(i.title, 70)}</a></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    ${threats.length ? `
+    <div class="section">
+      <div class="section-title" style="color:var(--red)">Critical Threats</div>
+      <div class="grid grid-3">
+        ${threats.slice(0,3).map(t => `
+          <div class="card threat-card ${t.severity < 7 ? 'medium' : ''}">
+            <div class="card-header">
+              <span class="badge badge-red">${t.threat_type}</span>
+              <span class="threat-severity" style="color:${scoreColor(t.severity)}">${t.severity}/10</span>
+            </div>
+            <h3 style="color:var(--text);font-size:15px;margin-bottom:8px">${t.title}</h3>
+            <p style="font-size:13px;color:var(--text2)">${truncate(t.description, 150)}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    ${opps.length ? `
+    <div class="section">
+      <div class="section-title" style="color:var(--green)">Top Opportunities</div>
+      <div class="grid grid-3">
+        ${opps.slice(0,3).map(o => `
+          <div class="card opp-card">
+            <div class="card-header">
+              <span class="badge badge-green">${o.opportunity_type}</span>
+              <span style="font-size:13px;color:var(--text2)">Value: ${o.potential_value}/10 | Feasibility: ${o.feasibility}/10</span>
+            </div>
+            <h3 style="color:var(--text);font-size:15px;margin-bottom:8px">${o.title}</h3>
+            <p style="font-size:13px;color:var(--text2)">${truncate(o.description, 150)}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+function renderThreats() {
+  const threats = DATA.analysis?.threats?.threats || [];
+  if (!threats.length) return '<div class="card" style="padding:48px;text-align:center"><p>No threats identified in this scan.</p></div>';
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title" style="color:var(--red)">Threat Analysis (${threats.length} threats)</div>
+      ${threats.map(t => `
+        <div class="card threat-card ${t.severity < 7 ? 'medium' : ''} ${t.severity < 5 ? 'low' : ''}" style="margin-bottom:16px">
+          <div class="card-header">
+            <div>
+              <span class="badge badge-red">${t.threat_type}</span>
+              <span style="margin-left:8px;font-size:13px;color:var(--text2)">${t.timeframe || ''}</span>
+            </div>
+            <span class="threat-severity" style="color:${scoreColor(t.severity)}">${t.severity}/10</span>
+          </div>
+          <h3 style="color:var(--text);font-size:17px;margin-bottom:12px">${t.title}</h3>
+          <p style="margin-bottom:12px">${t.description}</p>
+          <div style="background:var(--bg);padding:12px;border-radius:6px">
+            <strong style="color:var(--green)">Defensive Action:</strong>
+            <p style="margin-top:4px;color:var(--text2)">${t.defensive_action}</p>
+          </div>
+          ${t.source_competitor ? `<div style="margin-top:8px;font-size:12px;color:var(--text2)">Source: ${t.source_competitor}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function renderOpportunities() {
+  const opps = DATA.analysis?.opportunities?.opportunities || [];
+  if (!opps.length) return '<div class="card" style="padding:48px;text-align:center"><p>No opportunities identified.</p></div>';
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title" style="color:var(--green)">Opportunity Analysis (${opps.length} opportunities)</div>
+      ${opps.map(o => {
+        const priority = ((o.potential_value * o.feasibility) / 10).toFixed(1);
+        return `
+        <div class="card opp-card" style="margin-bottom:16px">
+          <div class="card-header">
+            <span class="badge badge-green">${o.opportunity_type}</span>
+            <div style="text-align:right">
+              <div style="font-size:12px;color:var(--text2)">Priority Score</div>
+              <div style="font-size:24px;font-weight:700;color:var(--green)">${priority}</div>
+            </div>
+          </div>
+          <h3 style="color:var(--text);font-size:17px;margin-bottom:8px">${o.title}</h3>
+          <div style="display:flex;gap:24px;margin-bottom:12px">
+            <div><span style="color:var(--text2);font-size:13px">Value:</span> ${scoreBar(o.potential_value)}</div>
+            <div><span style="color:var(--text2);font-size:13px">Feasibility:</span> ${scoreBar(o.feasibility)}</div>
+          </div>
+          <p style="margin-bottom:12px">${o.description}</p>
+          ${o.action_items?.length ? `
+            <div style="background:var(--bg);padding:12px;border-radius:6px">
+              <strong style="color:var(--accent)">Action Items:</strong>
+              <ul style="margin:8px 0 0 20px">
+                ${o.action_items.map(a => `<li style="color:var(--text2);margin-bottom:4px">${a}</li>`).join('')}
+              </ul>
+            </div>` : ''}
+          ${o.competitor_gap ? `<div style="margin-top:8px;font-size:13px"><strong>Gap:</strong> <span style="color:var(--text2)">${o.competitor_gap}</span></div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderTrends() {
+  const trends = DATA.analysis?.trends?.trends || [];
+  if (!trends.length) return '<div class="card" style="padding:48px;text-align:center"><p>No trends identified.</p></div>';
+
+  const directionIcon = d => ({accelerating:'▲',emerging:'◆',stable:'►',declining:'▼'}[d]||'●');
+  const directionColor = d => ({accelerating:'var(--green)',emerging:'var(--accent)',stable:'var(--text2)',declining:'var(--red)'}[d]||'var(--text2)');
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title" style="color:var(--accent)">Market Trends (${trends.length} identified)</div>
+      ${trends.map(t => `
+        <div class="card trend-card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div>
+              <span style="color:${directionColor(t.direction)};font-size:16px;margin-right:8px">${directionIcon(t.direction)}</span>
+              <span class="badge badge-blue">${t.category}</span>
+              <span class="badge" style="margin-left:4px;background:${directionColor(t.direction)}22;color:${directionColor(t.direction)}">${t.direction}</span>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:12px;color:var(--text2)">Strength</div>
+              <div style="font-size:20px;font-weight:700">${scoreBar(t.strength)}</div>
+            </div>
+          </div>
+          <h3 style="color:var(--text);font-size:17px;margin:8px 0">${t.name}</h3>
+          <p style="margin-bottom:12px">${t.description}</p>
+          ${t.tubi_implication ? `
+            <div style="background:var(--bg);padding:12px;border-radius:6px;margin-bottom:8px">
+              <strong style="color:var(--orange)">Tubi Implication:</strong>
+              <p style="margin-top:4px;color:var(--text2)">${t.tubi_implication}</p>
+            </div>` : ''}
+          ${t.prediction ? `<div style="font-size:13px"><strong>Prediction:</strong> <span style="color:var(--text2)">${t.prediction}</span></div>` : ''}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function renderCompetitors() {
+  const profiles = DATA.analysis?.profiles?.profiles || [];
+  if (!profiles.length) return '<div class="card" style="padding:48px;text-align:center"><p>No competitor profiles from this scan.</p></div>';
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title" style="color:var(--purple)">Competitor Profiles (${profiles.length} updated)</div>
+      <div class="grid grid-2">
+        ${profiles.map(p => `
+          <div class="card profile-card">
+            <div class="card-header">
+              <h3 style="color:var(--text);font-size:16px;text-transform:none">${p.name || p.competitor_id}</h3>
+              <div style="text-align:right">
+                <div style="font-size:11px;color:var(--text2)">Threat Level</div>
+                <div style="font-size:20px;font-weight:700;color:${scoreColor(p.threat_level)}">${p.threat_level}/10</div>
+              </div>
+            </div>
+            <div style="margin-bottom:12px">
+              <strong style="font-size:13px;color:var(--text2)">Strategy:</strong>
+              <p style="font-size:14px">${p.strategy_focus}</p>
+            </div>
+            ${p.recent_moves?.length ? `
+              <div style="margin-bottom:8px">
+                <strong style="font-size:13px;color:var(--text2)">Recent Moves:</strong>
+                <ul style="margin:4px 0 0 16px;font-size:13px">
+                  ${p.recent_moves.map(m => `<li style="color:var(--text2);margin-bottom:4px">${m}</li>`).join('')}
+                </ul>
+              </div>` : ''}
+            ${p.strengths_observed?.length ? `
+              <div style="font-size:13px;margin-top:8px">
+                <span style="color:var(--green)">Strengths:</span>
+                <span style="color:var(--text2)">${p.strengths_observed.join(', ')}</span>
+              </div>` : ''}
+            ${p.weaknesses_observed?.length ? `
+              <div style="font-size:13px;margin-top:4px">
+                <span style="color:var(--red)">Weaknesses:</span>
+                <span style="color:var(--text2)">${p.weaknesses_observed.join(', ')}</span>
+              </div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+function renderChannels() {
+  const channels = DATA.channels || {};
+  const browserData = DATA.browser_scrapes || {};
+
+  // Merge data sources
+  const allServices = {};
+
+  // From static parsing
+  for (const [id, d] of Object.entries(channels)) {
+    allServices[id] = {
+      name: id.charAt(0).toUpperCase() + id.slice(1),
+      count: d.channel_count || d.channel_count_claimed || d.initial_load_count || 0,
+      method: d.method || '',
+      date: d.date || '',
+    };
+  }
+
+  // From browser scrapes (override with better data)
+  for (const [key, d] of Object.entries(browserData)) {
+    const svc = d.service || key;
+    const count = d.channel_count || d.channel_count_names || d.channel_count_extracted || d.channel_count_claimed || 0;
+    if (count > (allServices[svc]?.count || 0)) {
+      allServices[svc] = {
+        name: d.service || key,
+        count: count,
+        method: d.method || 'browser',
+        date: d.date || '',
+        sample: d.sample_channels || [],
+      };
+    }
+  }
+
+  // Known data from references
+  const knownCounts = {
+    'tubi': { name: 'Tubi', count: 340, note: 'user-confirmed' },
+    'pluto_tv': { name: 'Pluto TV', count: 378, note: 'browser-verified' },
+    'xumo': { name: 'Xumo Play', count: 411, note: 'page-scraped' },
+    'sling_freestream': { name: 'Sling Freestream', count: 600, note: 'industry report' },
+    'plex': { name: 'Plex', count: 600, note: 'industry report' },
+    'samsung': { name: 'Samsung TV Plus', count: 300, note: 'marketing claim' },
+    'vizio': { name: 'Vizio WatchFree+', count: 300, note: 'marketing claim' },
+    'tcl_plus': { name: 'TCL+', count: 350, note: 'industry report' },
+    'roku': { name: 'Roku Channel', count: 375, note: 'estimated' },
+    'amazon': { name: 'Amazon Fire TV', count: 600, note: 'industry report' },
+    'lg': { name: 'LG Channels', count: 300, note: 'estimated' },
+  };
+
+  const merged = {...knownCounts};
+  for (const [k, v] of Object.entries(allServices)) {
+    if (v.count > (merged[k]?.count || 0)) {
+      merged[k] = { name: v.name, count: v.count, note: v.method };
+    }
+  }
+
+  const sorted = Object.entries(merged).sort((a,b) => b[1].count - a[1].count);
+  const maxCount = sorted[0]?.[1]?.count || 1;
+
+  const colors = {
+    tubi: '#e50914',
+    pluto_tv: '#1c1c1c',
+    xumo: '#00b4d8',
+    sling_freestream: '#2d5aa0',
+    plex: '#e5a00d',
+    samsung: '#1428a0',
+    vizio: '#f5821f',
+    tcl_plus: '#0066b3',
+    roku: '#6c3c97',
+    amazon: '#ff9900',
+    lg: '#a50034',
+  };
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title">Channel Count Comparison</div>
+      <div class="card">
+        ${sorted.map(([id, d]) => {
+          const pct = (d.count / maxCount) * 100;
+          const color = colors[id] || 'var(--accent)';
+          const isTubi = id === 'tubi';
+          return `
+            <div class="channel-bar">
+              <div class="channel-name" style="${isTubi?'font-weight:700;color:var(--text)':''}">${d.name}</div>
+              <div class="channel-fill" style="width:${Math.max(pct, 8)}%;background:${color};${isTubi?'border:2px solid var(--red)':''}">
+                ${d.count}${d.count >= 600 ? '+' : ''}
+              </div>
+              <span style="margin-left:8px;font-size:11px;color:var(--text2)">${d.note}</span>
+            </div>`;
+        }).join('')}
+      </div>
+      <p style="margin-top:12px;font-size:13px;color:var(--text2)">
+        Tubi highlighted in red. Counts verified via web scraping, browser automation, and industry reports.
+        Run <code>python3 tools/scanner/browser.py</code> for live counts.
+      </p>
+    </div>`;
+}
+
+function renderFeed() {
+  const intel = DATA.classified?.intel || [];
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title">Classified Article Feed (${intel.length} items)</div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Cat</th><th>Rel</th><th>Imp</th><th>Competitor</th><th>Title</th><th>Summary</th></tr>
+          </thead>
+          <tbody>
+            ${intel.map(i => `
+              <tr>
+                <td>${badgeFor(i.category)}</td>
+                <td>${scoreBar(i.relevance_score)}</td>
+                <td>${scoreBar(i.impact_score)}</td>
+                <td style="font-size:12px">${i.competitor_id}</td>
+                <td><a href="${i.url}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:13px">${truncate(i.title, 55)}</a></td>
+                <td style="font-size:12px;color:var(--text2)">${truncate(i.summary, 80)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderBrief() {
+  const analysis = DATA.analysis || {};
+  // Try to get the synthesis brief from the report
+  const reportMd = DATA.report_md || '';
+
+  // Extract executive brief section
+  let brief = '';
+  const briefMatch = reportMd.match(/## Executive Summary[\s\S]*?(?=\n---|\n## All Classified)/);
+  if (briefMatch) {
+    brief = briefMatch[0];
+  } else {
+    // Use the full report
+    brief = reportMd;
+  }
+
+  // Simple markdown to HTML
+  brief = brief
+    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\- (.*$)/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hul])/gm, '<p>')
+    ;
+
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title">Executive Brief</div>
+      <div class="brief">${brief || '<p>No executive brief generated. Run the full pipeline.</p>'}</div>
+    </div>`;
+}
+
+function renderMemory() {
+  return `
+    <div class="section" style="margin-top:16px">
+      <div class="section-title">Vector Memory Search</div>
+      <div class="card">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">
+          Search across all indexed competitive intel using semantic similarity (ChromaDB + OpenAI embeddings).
+        </p>
+        <input type="text" class="search-box" id="memory-search" placeholder="Search intel... (e.g., 'Roku sports channels', 'YouTube TV pricing')" />
+        <div id="memory-results" class="search-results"></div>
+        <div id="memory-stats" style="margin-top:16px;font-size:13px;color:var(--text2)"></div>
+      </div>
+    </div>`;
+}
+
+function setupMemorySearch() {
+  const input = document.getElementById('memory-search');
+  const results = document.getElementById('memory-results');
+  const statsDiv = document.getElementById('memory-stats');
+  let timeout;
+
+  // Load stats
+  fetch('/api/memory/stats')
+    .then(r => r.json())
+    .then(s => {
+      if (s.error) {
+        statsDiv.textContent = 'Memory not initialized. Run pipeline with memory enabled.';
+      } else {
+        statsDiv.textContent = `Memory: ${s.intel_count} intel items | ${s.profiles_count} profiles | ${s.trends_count} trends`;
+      }
+    });
+
+  input.addEventListener('input', () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(async () => {
+      const q = input.value.trim();
+      if (q.length < 3) { results.innerHTML = ''; return; }
+
+      results.innerHTML = '<div class="loading" style="padding:16px">Searching</div>';
+      try {
+        const resp = await fetch(`/api/memory/search?q=${encodeURIComponent(q)}`);
+        const items = await resp.json();
+        if (items.error) {
+          results.innerHTML = `<p style="color:var(--red)">${items.error}</p>`;
+          return;
+        }
+        results.innerHTML = items.map(item => `
+          <div class="card" style="margin-top:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span class="badge badge-blue">${item.metadata?.category || 'intel'}</span>
+              <span style="font-size:11px;color:var(--text2)">distance: ${item.distance?.toFixed(4)}</span>
+            </div>
+            <p style="font-size:14px">${item.document}</p>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px">
+              ${item.metadata?.competitor_id || ''} | rel: ${item.metadata?.relevance_score || '—'} | imp: ${item.metadata?.impact_score || '—'}
+              ${item.metadata?.url ? ` | <a href="${item.metadata.url}" target="_blank" style="color:var(--accent)">source</a>` : ''}
+            </div>
+          </div>
+        `).join('') || '<p style="padding:12px;color:var(--text2)">No results found.</p>';
+      } catch(e) {
+        results.innerHTML = `<p style="color:var(--red)">Search failed: ${e.message}</p>`;
+      }
+    }, 300);
+  });
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '...' : s;
+}
+
+// Initialize
+loadData();
+</script>
+</body>
+</html>

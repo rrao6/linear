@@ -1,0 +1,72 @@
+{
+  "xumo": {
+    "channel_count": 411,
+    "category_count": 26,
+    "categories": [
+      "Action \\u0026 Drama",
+      "Animals \\u0026 Nature",
+      "Automotive",
+      "Black Voices. Black Stories.",
+      "Classic TV",
+      "Combat Sports",
+      "Comedy",
+      "Crime TV",
+      "Daytime TV",
+      "Faith \\u0026 Family",
+      "Food",
+      "Game Shows",
+      "History \\u0026 Learning",
+      "Home \\u0026 Design",
+      "Horror \\u0026 Sci-Fi",
+      "Kids",
+      "Latino",
+      "Local News",
+      "Movies",
+      "Music \\u0026 Radio",
+      "News",
+      "Pop Culture",
+      "Reality TV",
+      "Sports",
+      "Travel \\u0026 Lifestyle",
+      "Westerns \\u0026 Country"
+    ],
+    "method": "slug count from page JSON",
+    "url": "https://play.xumo.com/channels",
+    "date": "2026-02-15",
+    "page_size": 457094
+  },
+  "samsung": {
+    "channel_count_claimed": 300,
+    "method": "marketing text extraction (no channel list exposed in HTML)",
+    "note": "Samsung does not expose channel names in HTML; count is from marketing copy",
+    "url": "https://www.samsung.com/us/tvplus/",
+    "date": "2026-02-15",
+    "page_size": 496638
+  },
+  "pluto": {
+    "channel_count_titles": 0,
+    "channel_count_slugs": 0,
+    "categories": [],
+    "method": "title/slug count from page (may be incomplete due to dynamic loading)",
+    "url": "https://pluto.tv/en/live-tv",
+    "date": "2026-02-15",
+    "page_size": 30099
+  },
+  "tubi": {
+    "initial_load_count": 0,
+    "note": "Full channel count requires dynamic page rendering. User reports ~340 channels total.",
+    "sample_channels": [],
+    "method": "title extraction from initial HTML (partial)",
+    "url": "https://tubitv.com/live",
+    "date": "2026-02-15",
+    "page_size": 125904
+  },
+  "vizio": {
+    "channel_count_claimed": 300,
+    "title_count": 0,
+    "method": "marketing text + title extraction",
+    "url": "https://www.vizio.com/en/watchfreeplus",
+    "date": "2026-02-15",
+    "page_size": 192371
+  }
+}

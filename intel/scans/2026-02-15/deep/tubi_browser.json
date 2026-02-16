@@ -1,0 +1,15 @@
+{
+  "tubi": {
+    "service": "tubi",
+    "url": "https://tubitv.com/live",
+    "channel_count_rendered": 1,
+    "channel_ids_found": 0,
+    "categories": [],
+    "sample_channels": [
+      "NBA All-Star"
+    ],
+    "method": "playwright_headless",
+    "page_size": 1396829,
+    "date": "2026-02-15"
+  }
+}

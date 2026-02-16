@@ -1,0 +1,6 @@
+{
+  "name": "linear-data",
+  "version": "1.0.0",
+  "description": "Query Databricks for linear TV metrics, user behavior, session attribution, and funnel analysis",
+  "skills": ["./skills"]
+}

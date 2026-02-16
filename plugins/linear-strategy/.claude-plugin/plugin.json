@@ -1,0 +1,6 @@
+{
+  "name": "linear-strategy",
+  "version": "1.0.0",
+  "description": "PRD generation, strategy synthesis, decision logging, and opportunity tracking for Linear TV",
+  "skills": ["./skills"]
+}

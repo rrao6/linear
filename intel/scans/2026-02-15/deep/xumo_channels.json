@@ -1,0 +1,23 @@
+{
+  "url": "https://play.xumo.com/channels",
+  "date": "2026-02-15",
+  "page_size": 457094,
+  "prompt": "Count EVERY channel listed on this page. Group by category. I need the exact total count and full category breakdown with channel names.",
+  "extraction": "```json\n{\n  \"categories\": [\n    {\n      \"name\": \"Black Voices. Black Stories.\",\n      \"channels\": [\n        \"Are We There Yet?\",\n        \"LOL Network\",\n        \"Xumo Free Black Cinema\",\n        \"Shades of Black\",\n        \"Growing Up Hip Hop We TV\",\n        \"STELLAR\",\n        \"Maverick Black Cinema\",\n        \"It's Showtime at the Apollo\",\n        \"Bounce XL\",\n        \"ALLBLK Gems\",\n        \"TV One Stars & Stories\",\n        \"Ebony TV by Lionsgate\"\n      ]\n    },\n    {\n      \"name\": \"Action & Drama\",\n      \"channels\": [\n        \"Xumo Free Action & Drama TV\",\n        \"Xumo Free Action Movies\",\n        \"Bizaar\",\n        \"The Wu Tang Collection TV\",\n        \"Heartland\",\n        \"ElectricNOW\",\n        \"Murdoch Mysteries\",\n        \"KOCOWA K-Drama\",\n        \"Stories by AMC\",\n        \"GET\",\n        \"ION Plus\",\n        \"Demand Africa\",\n        \"Crunchyroll\",\n        \"Universal Action\",\n        \"ION\",\n        \"Baywatch\",\n        \"GoldenTV\",\n        \"BBC Drama\",\n        \"Acorn TV Mysteries\",\n        \"50 Cent Action\",\n        \"Xena Warrior Princess\",\n        \"Designated Survivor\",\n        \"Nash Bridges Channel\",\n        \"Las Vegas\"\n      ]\n    },\n    {\n      \"name\": \"Crime TV\",\n      \"channels\": [\n        \"World's Wildest Police Videos\",\n        \"Unsolved Mysteries\",\n        \"Forensic Files\",\n        \"Xumo Free Crime TV\",\n        \"A&E Crime 360\",\n        \"REELZ Famous & Infamous\",\n        \"Law&Crime\",\n        \"Court TV\",\n        \"Midsomer Murders\"\n      ]\n    }\n  ],\n  \"total_channels\": 45\n}\n```",
+  "model": "gpt-4o",
+  "tokens": {
+    "prompt_tokens": 22144,
+    "completion_tokens": 384,
+    "total_tokens": 22528,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  }
+}

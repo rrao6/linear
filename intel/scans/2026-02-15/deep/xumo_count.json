@@ -1,0 +1,23 @@
+{
+  "url": "https://play.xumo.com/channels",
+  "date": "2026-02-15",
+  "page_size": 457094,
+  "prompt": "Count the total number of unique channel names on this page. Just give me the total count and a list of ALL category names with the count of channels in each category. Be thorough - look through ALL the page content.",
+  "extraction": "```json\n{\n  \"total_unique_channels\": 67,\n  \"categories\": [\n    {\n      \"name\": \"Black Voices. Black Stories.\",\n      \"channel_count\": 12\n    },\n    {\n      \"name\": \"Action & Drama\",\n      \"channel_count\": 24\n    },\n    {\n      \"name\": \"Crime TV\",\n      \"channel_count\": 9\n    }\n  ]\n}\n```",
+  "model": "gpt-4o",
+  "tokens": {
+    "prompt_tokens": 22162,
+    "completion_tokens": 86,
+    "total_tokens": 22248,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  }
+}

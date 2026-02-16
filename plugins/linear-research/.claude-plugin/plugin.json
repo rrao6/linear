@@ -1,0 +1,6 @@
+{
+  "name": "linear-research",
+  "version": "1.0.0",
+  "description": "Competitive intelligence, market research, and OEM placement tracking for FAST/Linear TV",
+  "skills": ["./skills"]
+}

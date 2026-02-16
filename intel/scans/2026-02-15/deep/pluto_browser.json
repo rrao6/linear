@@ -1,0 +1,14 @@
+{
+  "pluto": {
+    "service": "pluto_tv",
+    "url": "https://pluto.tv/en/live-tv",
+    "channel_count": 1,
+    "categories": [],
+    "sample_channels": [
+      "Comedy"
+    ],
+    "method": "playwright_headless",
+    "page_size": 549851,
+    "date": "2026-02-15"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "scan_date": "2026-02-15",
+  "sites_scanned": 10,
+  "results": {
+    "samsung_tv_plus": {
+      "name": "Samsung TV Plus",
+      "url": "https://www.samsung.com/us/tvplus/",
+      "status": "fetched",
+      "page_size_bytes": 496726,
+      "channel_mentions": 125,
+      "notes": "Reports 300+ channels as of Feb 2026",
+      "raw_snippet": "<!DOCTYPE html>\r\n\r\n<html lang=\"en\">\r\n    \r\n    <head>\n\t<!-- PWA - manifest\n\t<link rel=\"manifest\" href=\"/etc.clientlibs/samsung/clientlibs/consumer/global/clientlib-common/resources/pwa/manifest/us.json\">\n\t -->\n\t<!-- PWA - Browser Compatible\n\t<script async src=\"/etc.clientlibs/samsung/clientlibs/consumer/global/clientlib-common/resources/pwa/js/pwacompat.js\"></script>\n\t -->\n\t<!-- <meta name=\"theme-color\" content=\"#0c4da2\"> -->\n\t<!-- Add to home screen for Safari on iOS -->\n    <!-- <meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n    <meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black\">\n    <meta name=\"apple-mobile-web-app-title\" content=\"Samsung Shop\">\n    <link rel=\"apple-touch-icon\" href=\"/etc.clientlibs/samsung/clientlibs/consumer/global/clientlib-common/resources/pwa/icon/pwa_icon_192x192.png\"> -->\n    <!-- Add to home screen for Windows -->\n    <!-- <meta name=\"msapplication-TileImage\" content=\"/etc.clientlibs/samsung/clientlibs/consumer/global/clientlib-common/resources/pwa/icon/pwa_icon_192x192.png\">\n    <meta name=\"msapplication-TileColor\" content=\"#000000\"> -->\n\t\n\t\n\t\n\t\t<link rel=\"preconnect\" href=\"https://images.samsung.com\"/>\n\t\n\t\n\t<!-- Load clientLibs required when initializing Authoring: head.html override required to be added! -->\n\t\n    <!-- Load clientLibs required when initializing Authoring: head.html override required to be added! -->\n    \n\n\t\n    \n    \r\n\r\n\t<meta charset=\"utf-8\"/>\r\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"/>\r\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"/>\r\n\t\r\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\r\n\t<!-- SEO -->\r\n\t\r\n\t\r\n    \n\t\n\t\n\t\t<title>Smart TVs | Free Live TV with Samsung TV Plus | Samsung US</title>\n\t\n\t\n\t\n\t\t<meta name=\"title\" content=\"Smart TVs | Free Live TV with Samsung TV Plus | Samsung US\"/>\n\t\n\t\n\t\n\r\n    \r\n\t<link rel=\"canonical\" href=\"https://www.samsung.com/us/tvs/smart-tv/samsung-tv-plus/\"/>\r\n\t\r\n\t\r\n\t<meta name=\"keywords\" content=\"sam"
+    },
+    "pluto_tv": {
+      "name": "Pluto TV",
+      "url": "https://pluto.tv/en/live-tv",
+      "status": "fetched",
+      "page_size_bytes": 30099,
+      "channel_mentions": 3,
+      "notes": "Extensive lineup, categories visible on page",
+      "raw_snippet": "<!DOCTYPE html><html class=\"htmlContainer-0-2-18 htmlContainer-d0-0-2-19\" lang=\"en\"><head><link rel=\"canonical\" href=\"https://pluto.tv/en/live-tv\"><title data-react-helmet=\"true\">Watch Free Live TV Streaming Online | Pluto TV</title><meta data-react-helmet=\"true\" http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta data-react-helmet=\"true\" name=\"appVersion\" content=\"9.19.0-7a6c115631d945c4f7327de3e03b7c474b692657\"><meta data-react-helmet=\"true\" name=\"theme-color\" content=\"#000000\"><meta data-react-helmet=\"true\" name=\"viewport\" content=\"height=device-height,width=device-width,initial-scale=1,user-scalable=0,minimum-scale=1,maximum-scale=5\"><meta data-react-helmet=\"true\" property=\"og:type\" content=\"video.other\"><meta data-react-helmet=\"true\" property=\"og:image\" content=\"https://pluto-assets.s3.amazonaws.com/optimizely/images/og_logo_default_metatag.png\"><meta data-react-helmet=\"true\" property=\"og:locale\" content=\"en\"><meta data-react-helmet=\"true\" name=\"twitter:card\" content=\"summary_large_image\"><meta data-react-helmet=\"true\" name=\"twitter:site\" content=\"@PlutoTV\"><meta data-react-helmet=\"true\" name=\"twitter:image\" content=\"https://pluto-assets.s3.amazonaws.com/optimizely/images/og_logo_default_metatag.png\"><meta data-react-helmet=\"true\" name=\"description\" content=\"Watch a variety of free live TV channels - with news, sports, fan-favorite shows, movies and more. Stream now on Pluto TV.\"><meta data-react-helmet=\"true\" property=\"og:title\" content=\"Watch Free Live TV Streaming Online | Pluto TV\"><meta data-react-helmet=\"true\" property=\"og:url\" content=\"https://pluto.tv/en/live-tv\"><meta data-react-helmet=\"true\" property=\"og:description\" content=\"Watch a variety of free live TV channels - with news, sports, fan-favorite shows, movies and more. Stream now on Pluto TV.\"><meta data-react-helmet=\"true\" name=\"twitter:title\" content=\"Watch Free Live TV Streaming Online | Pluto TV\"><meta data-react-helmet=\"true\" name=\"twitter:description\" content=\"Watch a variety "
+    },
+    "xumo": {
+      "name": "Xumo Play",
+      "url": "https://play.xumo.com/channels",
+      "status": "fetched",
+      "page_size_bytes": 457094,
+      "channel_mentions": 6330,
+      "notes": "200+ channels, 26 categories as of Feb 2026",
+      "raw_snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><link rel=\"preconnect\" href=\"https://image.xumo.com/v1\"/><link rel=\"dns-prefetch\" href=\"https://image.xumo.com/v1\"/><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"/><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin=\"true\"/><link rel=\"shortcut icon\" type=\"image/ico\" href=\"/favicons/favicon.ico\"/><meta name=\"keywords\" content=\"\"/><meta name=\"copyright\" content=\"Xumo Play\"/><meta name=\"language\" content=\"EN\"/><meta name=\"robots\" content=\"index,follow\"/><meta property=\"og:site_name\" content=\"Xumo Play\"/><meta property=\"og:image\" content=\"https://play.xumo.com/favicons/android-chrome-192x192.png\"/><meta property=\"og:image:width\" content=\"900\"/><meta property=\"og:type\" content=\"website\"/><meta name=\"twitter:site\" content=\"@xumoplay\"/><meta name=\"twitter:creator\" content=\"@xumoplay\"/><meta name=\"twitter:card\" content=\"summary_large_image\"/><meta name=\"twitter:image\" content=\"https://play.xumo.com/favicons/android-chrome-192x192.png\"/><meta itemProp=\"name\" content=\"Xumo Play\"/><meta itemProp=\"image\" content=\"https://play.xumo.com/favicons/android-chrome-192x192.png\"/><script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"url\":\"https://play.xumo.com\",\"logo\":\"https://play.xumo.com/favicons/favicon-196x196.png\"}</script><meta name=\"format-detection\" content=\"telephone=no\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"apple-touch-icon-precomposed\" sizes=\"57x57\" href=\"/favicons/apple-touch-icon-57x57.png\"/><link rel=\"apple-touch-icon-precomposed\" sizes=\"60x60\" href=\"/favicons/apple-touch-icon-60x60.png\"/><link rel=\"apple-touch-icon-precomposed\" sizes=\"72x72\" href=\"/favicons/apple-touch-icon-72x72.png\"/><link rel=\"apple-touch-icon-precomposed\" sizes=\"76x76\" href=\"/favicons/apple-touch-icon-76x76.png\"/><link rel=\"apple-touch-icon-precomposed\" sizes=\"114x114\" href=\"/favicons/apple-touch-icon-114x114.png\"/><link rel=\"apple-t"
+    },
+    "roku_channel": {
+      "name": "Roku Channel",
+      "url": "https://therokuchannel.roku.com/live",
+      "status": "fetched",
+      "page_size_bytes": 24697,
+      "channel_mentions": 28,
+      "notes": "May require JS rendering",
+      "raw_snippet": "<!DOCTYPE html>\n<html lang=\"en\">\n\n\t<head>\n\t\t<meta charset=\"utf-8\">\n\t\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n\t\t<meta name=\"fragment\" content=\"!\">\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\t\t<meta name=\"description\"  content=\"Roku provides the simplest way to stream entertainment to your TV. On your terms. With thousands of available channels to choose from.\"  >\n\t\t<meta name=\"author\" content=\"Roku\" >\n\t\t<meta name=\"copyright\" content=\"2026\">\n        <meta name=\"theme-color\" content=\"#662d91\">\n\t\t<meta property=\"og:title\" content=\"Roku\" >\n\t\t<meta property=\"og:type\" content=\"Website\" >\n\t\t<meta property=\"og:url\" content=\"http://www.roku.com\" >\n\t\t<meta property=\"og:image\" content=\"https://www.roku.com/assets/roku-logo-purple.png\" >\n\t\t<meta property=\"og:description\" content=\"Roku provides the simplest way to stream entertainment to your TV. On your terms. With thousands of available channels to choose from.\" >\n\t\t<meta property=\"og:locale\" content=\"en_US\" >\n\t\t<meta property=\"og:site_name\" content=\"Roku\" >\n\t\t<meta name=\"twitter:card\" content=\"summary\" >\n\t\t<meta name=\"twitter:url\" content=\"http://www.roku.com\" >\n\t\t<meta name=\"twitter:title\" content=\"Roku\" >\n\t\t<meta name=\"twitter:description\" content=\"Roku provides the simplest way to stream entertainment to your TV. On your terms. With thousands of available channels to choose from.\" >\n\t\t<meta name=\"twitter:image\" content=\"https://www.roku.com/assets/roku-logo-purple.png\" >\n\t\t<meta name=\"twitter:site\" content=\"@RokuPlayer\" >\n\t\t<meta name=\"twitter:creator\" content=\"@RokuPlayer\" >\n\t\t<meta itemprop=\"description\" content=\"Roku provides the simplest way to stream entertainment to your TV. On your terms. With thousands of available channels to choose from.\" >\n\t\t<meta itemprop=\"image\" content=\"https://www.roku.com/assets/roku-logo-purple.png\" >\n\t\t<meta itemprop=\"name\" content=\"Roku\" >\n\t\t<meta itemprop=\"url\" content=\"http://www.roku.com\" >\n\t\t<title>Roku</title>\n\n\t\t\t<link rel=\"preconnect\" href"
+    },
+    "vizio_watchfree": {
+      "name": "Vizio WatchFree+",
+      "url": "https://www.vizio.com/en/watchfreeplus",
+      "status": "fetched",
+      "page_size_bytes": 192345,
+      "channel_mentions": 17,
+      "notes": "",
+      "raw_snippet": "<!DOCTYPE html>\n<html lang=\"en-US\">\n\n<head>\n    <meta charset=\"UTF-8\"/>\n    <title>WatchFree+ | Free Live TV &amp; On-Demand Streaming Built Into Your VIZIO TV</title>\n    \n    <meta name=\"description\" content=\"Stream 300+ live TV channels and 30,000+ free movies and shows on WatchFree+ with no subscription needed.\"/>\n    <meta name=\"template\" content=\"content-page\"/>\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" user-scalable=\"yes\"/>\n    \n\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"/>\n<!-- BazaarVoice Loader -->\n\n    \n    \n    \n    \n    <meta name=\"language\" content=\"en_us\"/> \n    <meta name=\"country\" content=\"US\"/>\n    \n    <link rel=\"canonical\" href=\"https://www.vizio.com/en/watchfreeplus\"/> \n    \n    \n    <meta property=\"og:title\" content=\"WatchFree+ | Free Live TV &amp; On-Demand Streaming Built Into Your VIZIO TV\"/>\n    <meta property=\"og:description\" content=\"Stream 300+ live TV channels and 30,000+ free movies and shows on WatchFree+ with no subscription needed.\"/>\n    <meta property=\"og:url\" content=\"https://www.vizio.com/en/watchfreeplus\"/> \n    \n    <meta property=\"og:site_name\" content=\"United States\"/>\n    <meta property=\"og:type\" content=\"content-page\"/> \n    <meta property=\"og:locale\" content=\"en_us\"/>\n    \n\n    \n    <meta name=\"twitter:title\" content=\"WatchFree+ | Free Live TV &amp; On-Demand Streaming Built Into Your VIZIO TV\"/>\n    <meta name=\"twitter:description\" content=\"Stream 300+ live TV channels and 30,000+ free movies and shows on WatchFree+ with no subscription needed.\"/>\n    <meta name=\"twitter:url\" content=\"https://www.vizio.com/en/watchfreeplus\"/>\n     \n    <meta name=\"twitter:site_name\" content=\"United States\"/>\n    \n    \n    \n    \n    \n<script async src=\"https://apps.bazaarvoice.com/deployments/vizio/main_site/production/en_US/bv.js\"></script>\n<!--<link rel=\"stylesheet\" href=\"/etc.clientlibs/vizio/clientlibs/third-party/coveo.min.css\" type=\"text/css\">-->\n\n    <script src=\"https://cdn"
+    },
+    "lg_channels": {
+      "name": "LG Channels",
+      "url": "https://www.lg.com/us/lg-channels/",
+      "status": "error",
+      "error": "ERROR: The read operation timed out"
+    },
+    "plex": {
+      "name": "Plex",
+      "url": "https://www.plex.tv/live-tv/",
+      "status": "error",
+      "error": "ERROR: HTTP Error 301: The HTTP server returned a redirect error that would lead to an infinite loop.\nThe last 30x error message was:\nMoved Permanently"
+    },
+    "tubi": {
+      "name": "Tubi",
+      "url": "https://tubitv.com/live",
+      "status": "fetched",
+      "page_size_bytes": 125999,
+      "channel_mentions": 245,
+      "notes": "~340 channels per user report",
+      "raw_snippet": "<!DOCTYPE html>\n<html lang=\"en\"><head><meta http-equiv=\"x-dns-prefetch-control\" content=\"on\"/><meta http-equiv=\"Pragma\" content=\"no-control\"/><meta http-equiv=\"cache-control\" content=\"no-cache, no-store, must-revalidate\"/><meta name=\"charset\" content=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no\"/><link rel=\"manifest\" href=\"/manifest.json\"/><link crossorigin=\"anonymous\" rel=\"preconnect\" href=\"//md0.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"preconnect\" href=\"//mcdn.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//md0.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//mcdn.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//config-hub-cdn.production-public.tubi.io\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//popper-engine.production-public.tubi.io\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//www.googletagmanager.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//canvas.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//canvas-bridge.tubitv.com\"/><link crossorigin=\"anonymous\" rel=\"dns-prefetch\" href=\"//canvas-bridge02.tubitv.com\"/><link media=\"screen\" rel=\"stylesheet\" href=\"//md0.tubitv.com/web-k8s/dist/main.55a19956.css\"/><link rel=\"preload\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\" href=\"//md0.tubitv.com/web-k8s/dist/9c1163dc5cc2.woff2\"/><link rel=\"preload\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\" href=\"//md0.tubitv.com/web-k8s/dist/c3c9f10a4dbf.woff2\"/><link rel=\"preload\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\" href=\"//md0.tubitv.com/web-k8s/dist/fad5c462fac3.woff2\"/><link rel=\"prefetch\" href=\"//md0.tubitv.com/web-k8s/dist/web-video.605f5bd2.chunk.js\" as=\"script\"/><title data-rh=\"true\">Watch Free Live TV, Movies and TV Shows Online | Tubi</title><meta data-rh=\"true\" name=\"robots\" content=\"index, follow, max-image-preview:large"
+    },
+    "stirr": {
+      "name": "Stirr",
+      "url": "https://stirr.com",
+      "status": "fetched",
+      "page_size_bytes": 460415,
+      "channel_mentions": 3,
+      "notes": "",
+      "raw_snippet": "<!DOCTYPE html>\n<html lang=\"en\">\n\n<head>\n    \n    <meta charset=\"utf-8\">\n<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\n\n\n\n\n\n\n\n\n\n<meta name=\"title\" content=\"STIRR - Stream Free Movies, TV Shows & Series\" />\n<meta name=\"keywords\" content=\"streaming,free movies,free TV,TV series,streaming platform,entertainment,cultural diversity,multilingual content,free streaming,movie discovery,TV shows,no subscription,cross-device streaming,inspiration,diverse entertainment,watch online,free entertainment,STIRR,Local TV News,Local News,Free streaming,WLOS,All Things Fair,Mortal Kombat 2,STIRR TV APP,WLUK,STIRR APP,Freebie TV,Chive TV,Cricket Gold,Euronews,AWE,WBFF,Komo,Komo ABC Seattle,Seattle Komo TV,WLOS Ashville news 13,Komo news four,Free Movie Websites,STIRR TV,free movies website,STIRR TV,free streaming,live TV online,on-demand shows,free movies,local news streaming,STIRR app,cord cutter TV,stream anywhere,no subscription TV,STIRR TV app,STIRR Roku channel,STIRR on Fire TV,STIRR Apple TV app,STIRR Android TV,STIRR iOS app,STIRR on Samsung TV,free TV app,streaming TV Firestick,live TV Roku,STIRR Chromecast,smart TV streaming,local news Roku,free channels Fire TV,watch STIRR on iPhone,STIRR Android download,STIRR smart TV app,STIRR app store,STIRR Google Play,free movie websites\" />\n<meta name=\"description\" content=\"Watch Free live TV and on-demand shows\u2014anytime, anywhere. News, sports, movies, and more with zero hassle. Stream it all free with STIRR.\" />\n\n\n\n\n    \n    <link href=\"https://cdn-vcz-ktest2-cloud-vodlix-com.b-cdn.net/styles/default/theme/css/bootstrap.min.css?cbuster=1771001550\" rel=\"stylesheet\">\n<link href=\"https://cdn-vcz-ktest2-cloud-vodlix-com.b-cdn.net/styles/default/theme/css/materialdesignicons.min.css?cbuster=1771001550\" rel=\"stylesheet\">\n<!-- <link href=\"https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap\" rel=\"stylesheet\"> -->\n<link href=\"https:/"
+    },
+    "distro_tv": {
+      "name": "Distro TV",
+      "url": "https://www.distro.tv/channels/",
+      "status": "error",
+      "error": "ERROR: HTTP Error 404: Not Found"
+    }
+  }
+}
