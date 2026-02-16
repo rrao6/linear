@@ -1,12 +1,16 @@
 """Strategy workspace: PRDs, decisions, work items, learnings, change log."""
 
 import json
+import logging
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from .. import db
+from ..config import OPENAI_API_KEY
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
 
@@ -158,72 +162,184 @@ def create_change(c: ChangeCreate):
 
 # --- PRD Generator ---
 
-@router.post("/generate-prd")
-def generate_prd(context: dict):
-    """Generate a PRD template with context from all modules."""
-    title = context.get("title", "Untitled PRD")
-    problem = context.get("problem", "")
-    hypothesis = context.get("hypothesis", "")
+class PRDRequest(BaseModel):
+    topic: str
+    context: str = ""
 
-    # Pull relevant data
+
+class PRDUpdate(BaseModel):
+    status: Optional[str] = None
+    content_md: Optional[str] = None
+
+
+def _gather_hub_context(topic: str) -> dict:
+    """Pull all relevant context from the hub for PRD generation."""
+    # Sentiment topics — what users complain/talk about most
+    feedback_items = db.get_feedback(limit=200)
+    topic_counts = {}
+    for item in feedback_items:
+        topics = item.get("topics", "[]")
+        if isinstance(topics, str):
+            topics = json.loads(topics)
+        for t in topics:
+            topic_counts[t] = topic_counts.get(t, 0) + 1
+    sorted_topics = sorted(topic_counts.items(), key=lambda x: -x[1])[:15]
+    sentiment_summary = db.get_sentiment_summary()
+
+    # Grab actual negative feedback quotes for context
+    negative_feedback = [
+        f for f in feedback_items
+        if f.get("sentiment") == "negative"
+    ][:10]
+
+    # Competitive threats — from latest intel scan
+    from .intel import get_threats, get_opportunities
+    threats = get_threats()
+    opportunities = get_opportunities()
+
+    # Current metrics from dashboard
+    from .dashboard import get_overview, get_goals
+    overview = get_overview()
+    goals = get_goals()
+
+    # Open work items
+    work_items = db.get_work_items(status="open", limit=20)
+    in_progress = db.get_work_items(status="in_progress", limit=20)
+
+    # Experiment results
+    experiments = db.get_experiments(limit=20)
+    for exp in experiments:
+        for field in ("platforms", "metrics"):
+            if isinstance(exp.get(field), str):
+                exp[field] = json.loads(exp[field])
+
+    # Learnings
+    learnings = db.get_learnings(limit=20)
+
+    # Verifications
     verifications = db.get_verifications(limit=10)
-    feedback = db.get_feedback(limit=20)
-    learnings = db.get_learnings(limit=10)
-    experiments = db.get_experiments(limit=10)
 
-    prd_md = f"""# {title}
+    return {
+        "topic": topic,
+        "sentiment_topics": sorted_topics,
+        "sentiment_summary": sentiment_summary,
+        "negative_feedback": [
+            {"text": f["text"], "source": f["source"], "score": f.get("sentiment_score")}
+            for f in negative_feedback
+        ],
+        "threats": threats[:10] if isinstance(threats, list) else [],
+        "opportunities": opportunities[:10] if isinstance(opportunities, list) else [],
+        "kpis": overview.get("kpis", {}),
+        "goals": goals,
+        "work_open": [{"title": w["title"], "type": w["type"], "priority": w["priority"]} for w in work_items[:10]],
+        "work_in_progress": [{"title": w["title"], "type": w["type"]} for w in in_progress[:10]],
+        "experiments": [
+            {"name": e["name"], "status": e["status"], "hypothesis": e.get("hypothesis", ""),
+             "metrics": e.get("metrics", {})}
+            for e in experiments[:10]
+        ],
+        "learnings": [
+            {"title": l["title"], "category": l["category"], "description": l["description"][:200]}
+            for l in learnings[:10]
+        ],
+        "verifications": [
+            {"metric": v["metric_name"], "expected": v["expected_value"],
+             "actual": v["actual_value"], "status": v["match_status"]}
+            for v in verifications[:10]
+        ],
+    }
 
-> Date: {{date}}
-> Author: {{author}}
-> Status: DRAFT
 
-## Problem Statement
-{problem}
+def _build_prd_prompt(topic: str, user_context: str, hub_data: dict) -> str:
+    """Build the system + user prompt for OpenAI PRD generation."""
+    system = """You are a senior product manager at Tubi, a free ad-supported streaming service.
+You write concise, data-driven PRDs that reference real metrics and user feedback.
+Your PRDs are actionable and grounded in evidence, not aspirational fluff.
 
-## Hypothesis
-{hypothesis}
+Output a complete PRD in markdown format with these exact sections:
+1. **Problem Statement** — derived from sentiment data and competitive threats
+2. **User Need** — backed by actual user quotes and sentiment data
+3. **Proposed Solution** — concrete description of what to build
+4. **Success Metrics** — table with Metric, Current Baseline, Target, Guardrail columns using real numbers
+5. **Competitive Context** — what competitors are doing in this space
+6. **Risks and Open Questions** — honest assessment
+7. **Implementation Phases** — phased rollout plan
 
-## Evidence
+Use the hub data provided to ground every section in real numbers and quotes.
+Do NOT invent data — if something is missing, note it as a gap."""
 
-### Data Verifications
+    hub_summary = json.dumps(hub_data, indent=2, default=str)
+
+    user_msg = f"""Generate a PRD for: **{topic}**
+
+Additional context from the requester:
+{user_context if user_context else "(none provided)"}
+
+--- HUB DATA (real data from our systems) ---
+{hub_summary}
 """
-    for v in verifications[:5]:
-        prd_md += f"- **{v['metric_name']}**: expected={v['expected_value']}, actual={v['actual_value']} ({v['match_status']})\n"
+    return system, user_msg
 
-    prd_md += "\n### User Feedback Themes\n"
-    sentiment = db.get_sentiment_summary()
-    prd_md += f"- Total feedback items: {sentiment['total']}\n"
-    prd_md += f"- Average sentiment: {sentiment['avg_score']}\n"
-    for s, c in sentiment.get("by_sentiment", {}).items():
-        prd_md += f"- {s}: {c}\n"
 
-    prd_md += "\n### Relevant Learnings\n"
-    for l in learnings[:5]:
-        prd_md += f"- [{l['category']}] {l['title']}: {l['description'][:100]}\n"
+@router.post("/generate-prd")
+def generate_prd(req: PRDRequest):
+    """Generate a PRD using OpenAI, grounded in all hub data."""
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
 
-    prd_md += """
-## Solution
+    # 1. Gather all hub context
+    hub_data = _gather_hub_context(req.topic)
 
-### What we're building
-[TODO]
+    # 2. Build prompt
+    system_prompt, user_prompt = _build_prd_prompt(req.topic, req.context, hub_data)
 
-### What we're NOT building
-[TODO]
+    # 3. Call OpenAI
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=4000,
+        )
+        prd_md = response.choices[0].message.content
+    except Exception as e:
+        logger.error("OpenAI PRD generation failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"OpenAI call failed: {e}")
 
-## Success Metrics
-| Metric | Baseline | Target | Guardrail |
-|--------|----------|--------|-----------|
-| Linear TVT | | | |
-| Global TVT | | | |
-| Conversion | | | |
+    # 4. Store in database
+    prd_id = db.create_prd(topic=req.topic, content_md=prd_md)
 
-## Experiment Plan
-[TODO]
+    return {"id": prd_id, "topic": req.topic, "status": "draft", "prd_markdown": prd_md}
 
-## Risks & Mitigations
-[TODO]
 
-## Timeline
-[TODO]
-"""
-    return {"prd_markdown": prd_md}
+@router.get("/prds")
+def list_prds(status: Optional[str] = None, limit: int = 100):
+    """List all generated PRDs."""
+    return db.get_prds(status=status, limit=limit)
+
+
+@router.get("/prds/{prd_id}")
+def get_prd(prd_id: int):
+    """Get a single PRD by ID."""
+    prd = db.get_prd(prd_id)
+    if not prd:
+        raise HTTPException(status_code=404, detail="PRD not found")
+    return prd
+
+
+@router.put("/prds/{prd_id}")
+def update_prd(prd_id: int, update: PRDUpdate):
+    """Update PRD status or content after review."""
+    existing = db.get_prd(prd_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="PRD not found")
+    kwargs = {k: v for k, v in update.model_dump().items() if v is not None}
+    if not kwargs:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    db.update_prd(prd_id, **kwargs)
+    return {"updated": True, "id": prd_id}
