@@ -145,7 +145,55 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 
 /* Loading */
 .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+.spinner-lg { width: 32px; height: 32px; border-width: 3px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Loading overlay for sections */
+.loading-wrap { position: relative; min-height: 60px; }
+.loading-overlay { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text3); gap: 10px; font-size: 13px; }
+
+/* Toast notifications */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 200; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { pointer-events: auto; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: var(--text); border: 1px solid var(--border); background: var(--bg2); box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; animation: toastIn 0.3s ease; max-width: 400px; }
+.toast-error { border-color: var(--red); background: rgba(248,81,73,0.1); }
+.toast-success { border-color: var(--green); background: rgba(63,185,80,0.1); }
+.toast-info { border-color: var(--accent); background: rgba(88,166,255,0.1); }
+.toast-icon { font-size: 16px; flex-shrink: 0; }
+.toast-dismiss { margin-left: auto; cursor: pointer; color: var(--text3); font-size: 16px; flex-shrink: 0; }
+.toast-dismiss:hover { color: var(--text); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Date range picker */
+.date-range-picker { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.date-range-picker button { padding: 4px 12px; font-size: 12px; background: var(--bg3); color: var(--text2); border: none; cursor: pointer; border-right: 1px solid var(--border); transition: all 0.15s; }
+.date-range-picker button:last-child { border-right: none; }
+.date-range-picker button:hover { background: var(--bg4); color: var(--text); }
+.date-range-picker button.active { background: var(--accent); color: var(--bg); }
+
+/* Auto-refresh indicator */
+.auto-refresh-badge { font-size: 10px; color: var(--text3); display: flex; align-items: center; gap: 4px; }
+.auto-refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text3); }
+.empty-state-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state-title { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+.empty-state-desc { font-size: 12px; }
+.empty-state-action { margin-top: 16px; }
+
+/* Inline status editor */
+.status-select { background: transparent; border: 1px solid transparent; border-radius: 4px; color: inherit; font-size: 11px; padding: 2px 4px; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.status-select:hover { border-color: var(--border); background: var(--bg3); }
+.status-select:focus { outline: none; border-color: var(--accent); }
+
+/* Work item row actions */
+.work-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+.list-item:hover .work-actions { opacity: 1; }
+.btn-icon { padding: 4px 8px; font-size: 12px; border-radius: 4px; background: transparent; border: 1px solid var(--border); color: var(--text2); cursor: pointer; }
+.btn-icon:hover { background: var(--bg3); color: var(--text); }
+.btn-done { color: var(--green); }
+.btn-done:hover { background: rgba(63,185,80,0.15); color: var(--green); }
 </style>
 </head>
 <body>
@@ -184,11 +232,23 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
   </div>
 </aside>
 
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
 <!-- Main Content -->
 <div class="main">
   <div class="topbar">
     <h2 id="page-title">Dashboard</h2>
     <div class="topbar-actions">
+      <div class="date-range-picker" id="date-range-picker" style="display:none">
+        <button data-days="7" onclick="setDateRange(7)">7d</button>
+        <button data-days="30" class="active" onclick="setDateRange(30)">30d</button>
+        <button data-days="90" onclick="setDateRange(90)">90d</button>
+        <button data-days="365" onclick="setDateRange(365)">365d</button>
+      </div>
+      <div class="auto-refresh-badge" id="auto-refresh-badge" style="display:none">
+        <span class="auto-refresh-dot"></span> Auto-refresh
+      </div>
       <button class="btn btn-sm" onclick="refreshData()">Refresh</button>
     </div>
   </div>
@@ -450,6 +510,80 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 <script>
 const API = '';  // Same origin
 
+// --- Global state ---
+let currentDateRange = 30; // days
+let autoRefreshTimer = null;
+const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+// Pages that show the date range picker
+const DATE_RANGE_PAGES = ['dashboard', 'intel', 'data', 'verifications', 'sentiment'];
+
+// --- Toast notifications ---
+function showToast(message, type = 'info', duration = 5000) {
+  const container = document.getElementById('toast-container');
+  const icons = { error: '&#10007;', success: '&#10003;', info: '&#9432;' };
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${message}</span><span class="toast-dismiss" onclick="this.parentElement.remove()">&#10005;</span>`;
+  container.appendChild(toast);
+  if (duration > 0) setTimeout(() => { if (toast.parentElement) toast.remove(); }, duration);
+  return toast;
+}
+
+// --- Loading helpers ---
+function showLoading(elementId, message = 'Loading...') {
+  const el = document.getElementById(elementId);
+  if (el) el.innerHTML = `<div class="loading-overlay"><span class="spinner spinner-lg"></span> ${message}</div>`;
+}
+
+// --- Empty state helpers ---
+function emptyState(icon, title, desc, actionHtml = '') {
+  return `<div class="empty-state"><div class="empty-state-icon">${icon}</div><div class="empty-state-title">${title}</div><div class="empty-state-desc">${desc}</div>${actionHtml ? `<div class="empty-state-action">${actionHtml}</div>` : ''}</div>`;
+}
+
+// --- Date range picker ---
+function setDateRange(days) {
+  currentDateRange = days;
+  document.querySelectorAll('.date-range-picker button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.days) === days);
+  });
+  refreshData();
+}
+
+function updateDateRangeVisibility(page) {
+  const picker = document.getElementById('date-range-picker');
+  picker.style.display = DATE_RANGE_PAGES.includes(page) ? 'inline-flex' : 'none';
+}
+
+// --- Auto-refresh ---
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoRefreshTimer = setInterval(() => {
+    const active = document.querySelector('.nav-item.active');
+    if (active && active.dataset.page === 'dashboard') {
+      loadDashboard();
+    }
+  }, AUTO_REFRESH_INTERVAL);
+  document.getElementById('auto-refresh-badge').style.display = 'flex';
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+function updateAutoRefreshVisibility(page) {
+  const badge = document.getElementById('auto-refresh-badge');
+  if (page === 'dashboard') {
+    startAutoRefresh();
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 // --- Navigation ---
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
@@ -459,6 +593,8 @@ document.querySelectorAll('.nav-item').forEach(item => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     document.getElementById('page-title').textContent = item.textContent.trim();
+    updateDateRangeVisibility(page);
+    updateAutoRefreshVisibility(page);
     loadPageData(page);
   });
 });
@@ -476,6 +612,7 @@ function loadPageData(page) {
     learnings: loadLearnings,
     changelog: loadChangelog,
     monitor: loadMonitor,
+    search: loadSearchPage,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -487,11 +624,20 @@ function refreshData() {
 
 // --- API helpers ---
 async function api(path, opts = {}) {
-  const resp = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
-  return resp.json();
+  try {
+    const resp = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => resp.statusText);
+      throw new Error(`${resp.status}: ${errText}`);
+    }
+    return resp.json();
+  } catch (err) {
+    showToast(err.message || 'Network error', 'error');
+    throw err;
+  }
 }
 
 function statusTag(status) {
@@ -512,65 +658,76 @@ function scoreBar(score, max = 10, color = 'var(--accent)') {
   return `<div class="score-bar"><div class="score-bar-bg"><div class="score-bar-fill" style="width:${pct}%;background:${color}"></div></div><span style="font-size:12px;color:var(--text2)">${score}</span></div>`;
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // --- Dashboard ---
 async function loadDashboard() {
-  const [overview, goals] = await Promise.all([
-    api('/api/dashboard/overview'),
-    api('/api/dashboard/goals'),
-  ]);
+  showLoading('kpi-cards');
+  showLoading('goal-progress');
+  showLoading('system-health');
 
-  const k = overview.kpis || {};
-  const kpis = [
-    { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)', rawColor: '#58a6ff', sparkData: [3.1, 3.4, 3.6, 3.8, 3.9, 4.0, 4.1, 4.28] },
-    { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)', rawColor: '#3fb950', sparkData: [275, 290, 300, 310, 320, 330, 335, 340] },
-    { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)', rawColor: '#bc8cff', sparkData: [2, 5, 8, 12, 15, 18, 22, overview.intel?.signals || 25] },
-    { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)', rawColor: '#d29922', sparkData: [0, 1, 1, 2, 3, 3, 4, overview.experiments?.total || 5] },
-    { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)', rawColor: '#56d4dd', sparkData: [1, 3, 5, 8, 10, 13, 16, overview.learnings || 18] },
-  ];
+  try {
+    const [overview, goals] = await Promise.all([
+      api('/api/dashboard/overview'),
+      api('/api/dashboard/goals'),
+    ]);
 
-  document.getElementById('kpi-cards').innerHTML = kpis.map((kpi, i) =>
-    `<div class="card card-sm"><h3>${kpi.label}</h3><div class="value" style="color:${kpi.color}">${kpi.value}</div><div class="sub">${kpi.sub}</div><div class="kpi-sparkline"><canvas id="spark-${i}"></canvas></div></div>`
-  ).join('');
+    const k = overview.kpis || {};
+    const kpis = [
+      { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)', rawColor: '#58a6ff', sparkData: [3.1, 3.4, 3.6, 3.8, 3.9, 4.0, 4.1, 4.28] },
+      { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)', rawColor: '#3fb950', sparkData: [275, 290, 300, 310, 320, 330, 335, 340] },
+      { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)', rawColor: '#bc8cff', sparkData: [2, 5, 8, 12, 15, 18, 22, overview.intel?.signals || 25] },
+      { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)', rawColor: '#d29922', sparkData: [0, 1, 1, 2, 3, 3, 4, overview.experiments?.total || 5] },
+      { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)', rawColor: '#56d4dd', sparkData: [1, 3, 5, 8, 10, 13, 16, overview.learnings || 18] },
+    ];
 
-  // Render sparklines
-  kpis.forEach((kpi, i) => {
-    const ctx = document.getElementById('spark-' + i);
-    if (!ctx) return;
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: kpi.sparkData.map(() => ''),
-        datasets: [{
-          data: kpi.sparkData,
-          borderColor: kpi.rawColor,
-          backgroundColor: kpi.rawColor + '20',
-          fill: true,
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        scales: { x: { display: false }, y: { display: false } },
-        animation: { duration: 600 },
-      },
+    document.getElementById('kpi-cards').innerHTML = kpis.map((kpi, i) =>
+      `<div class="card card-sm"><h3>${kpi.label}</h3><div class="value" style="color:${kpi.color}">${kpi.value}</div><div class="sub">${kpi.sub}</div><div class="kpi-sparkline"><canvas id="spark-${i}"></canvas></div></div>`
+    ).join('');
+
+    // Render sparklines
+    kpis.forEach((kpi, i) => {
+      const ctx = document.getElementById('spark-' + i);
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: kpi.sparkData.map(() => ''),
+          datasets: [{
+            data: kpi.sparkData,
+            borderColor: kpi.rawColor,
+            backgroundColor: kpi.rawColor + '20',
+            fill: true,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.4,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } },
+          animation: { duration: 600 },
+        },
+      });
     });
-  });
 
-  // Goal progress
-  const tvtPct = Math.min(100, (k.linear_tvt_share_current / k.linear_tvt_share_target) * 100);
-  document.getElementById('goal-progress').innerHTML = `
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span>Linear TVT: ${k.linear_tvt_share_current}%</span><span>Target: ${k.linear_tvt_share_target}%</span>
+    // Goal progress
+    const tvtPct = Math.min(100, (k.linear_tvt_share_current / k.linear_tvt_share_target) * 100);
+    document.getElementById('goal-progress').innerHTML = `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>Linear TVT: ${k.linear_tvt_share_current}%</span><span>Target: ${k.linear_tvt_share_target}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${tvtPct}%;background:var(--accent)"></div></div>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${tvtPct}%;background:var(--accent)"></div></div>
-    </div>
-    ${(goals.goals || []).map(g => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${g.name}</span><span class="tag tag-blue">${g.target}</span></div>`).join('')}
-  `;
+      ${(goals.goals || []).map(g => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${g.name}</span><span class="tag tag-blue">${g.target}</span></div>`).join('')}
+    `;
 
   // System health
   const scan = overview.latest_scan;
@@ -586,139 +743,176 @@ async function loadDashboard() {
     </div>
   `;
 
-  // Work summary
-  const w = overview.work || {};
-  document.getElementById('work-summary').innerHTML = `
-    <div style="font-size:13px">
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Open <span class="tag tag-blue">${w.open || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">In Progress <span class="tag tag-orange">${w.in_progress || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Blocked <span class="tag tag-red">${w.blocked || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Done <span class="tag tag-green">${w.done || 0}</span></div>
-    </div>
-  `;
+    // Work summary
+    const w = overview.work || {};
+    document.getElementById('work-summary').innerHTML = `
+      <div style="font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Open <span class="tag tag-blue">${w.open || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">In Progress <span class="tag tag-orange">${w.in_progress || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Blocked <span class="tag tag-red">${w.blocked || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Done <span class="tag tag-green">${w.done || 0}</span></div>
+      </div>
+    `;
 
-  // Verify summary
-  const v = overview.verifications || {};
-  document.getElementById('verify-summary').innerHTML = `
-    <div style="font-size:13px">
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Verified <span class="tag tag-green">${v.match || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Mismatch <span class="tag tag-red">${v.mismatch || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Pending <span class="tag tag-gray">${v.pending || 0}</span></div>
-    </div>
-  `;
+    // Verify summary
+    const v = overview.verifications || {};
+    document.getElementById('verify-summary').innerHTML = `
+      <div style="font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Verified <span class="tag tag-green">${v.match || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Mismatch <span class="tag tag-red">${v.mismatch || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Pending <span class="tag tag-gray">${v.pending || 0}</span></div>
+      </div>
+    `;
 
-  // Sentiment summary
-  const s = overview.sentiment || {};
-  document.getElementById('sentiment-summary').innerHTML = `
-    <div style="font-size:13px">
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Total <span>${s.total || 0}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0">Avg Score <span>${s.avg_score || 0}</span></div>
-      ${Object.entries(s.by_sentiment || {}).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:4px 0">${k} <span>${v}</span></div>`).join('')}
-    </div>
-  `;
+    // Sentiment summary
+    const s = overview.sentiment || {};
+    document.getElementById('sentiment-summary').innerHTML = `
+      <div style="font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Total <span>${s.total || 0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0">Avg Score <span>${s.avg_score || 0}</span></div>
+        ${Object.entries(s.by_sentiment || {}).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:4px 0">${k} <span>${v}</span></div>`).join('')}
+      </div>
+    `;
 
-  // Initiatives
-  const tbody = document.querySelector('#initiatives-table tbody');
-  tbody.innerHTML = (goals.initiatives || []).map(i =>
-    `<tr><td>${i.name}</td><td>${statusTag(i.status)}</td><td>${i.tvt_impact}</td></tr>`
-  ).join('');
+    // Initiatives
+    const tbody = document.querySelector('#initiatives-table tbody');
+    if (goals.initiatives && goals.initiatives.length) {
+      tbody.innerHTML = goals.initiatives.map(i =>
+        `<tr><td>${i.name}</td><td>${statusTag(i.status)}</td><td>${i.tvt_impact}</td></tr>`
+      ).join('');
+    } else {
+      tbody.innerHTML = `<tr><td colspan="3">${emptyState('&#9632;', 'No active initiatives', 'Strategic initiatives will appear here')}</td></tr>`;
+    }
+  } catch (err) {
+    document.getElementById('kpi-cards').innerHTML = emptyState('&#9888;', 'Failed to load dashboard', 'Check server connection and try refreshing', '<button class="btn btn-sm" onclick="loadDashboard()">Retry</button>');
+  }
 }
 
 // --- Intel Monitor ---
 async function loadIntel() {
-  const data = await api('/api/intel/latest');
-  if (data.error) {
-    document.getElementById('intel-stats').innerHTML = `<div class="card"><div class="empty">${data.error}</div></div>`;
-    return;
+  showLoading('intel-stats');
+  showLoading('threats-list');
+  showLoading('opps-list');
+  showLoading('trends-list');
+  showLoading('competitors-list');
+
+  try {
+    const data = await api('/api/intel/latest');
+    if (data.error) {
+      document.getElementById('intel-stats').innerHTML = '';
+      document.getElementById('threats-list').innerHTML = emptyState('&#9673;', 'No scan data', data.error, '<button class="btn btn-primary btn-sm" onclick="triggerScan()">Run First Scan</button>');
+      document.getElementById('opps-list').innerHTML = emptyState('&#9673;', 'No opportunities yet', 'Run a scan to discover opportunities');
+      document.getElementById('trends-list').innerHTML = emptyState('&#9673;', 'No trends identified', 'Trends emerge after scanning');
+      document.getElementById('competitors-list').innerHTML = emptyState('&#9673;', 'No competitor profiles', 'Profiles are built from scan data');
+      return;
+    }
+
+    const analysis = data.analysis || {};
+    const threats = analysis.threats || [];
+    const opps = analysis.opportunities || [];
+    const trends = analysis.trends || [];
+    const profiles = analysis.profiles || [];
+    const classified = data.classified?.intel || data.classified?.filtered || [];
+
+    document.getElementById('intel-stats').innerHTML = [
+      `<div class="card card-sm"><h3>Classified Intel</h3><div class="value">${classified.length}</div></div>`,
+      `<div class="card card-sm"><h3>Threats</h3><div class="value" style="color:var(--red)">${threats.length}</div></div>`,
+      `<div class="card card-sm"><h3>Opportunities</h3><div class="value" style="color:var(--green)">${opps.length}</div></div>`,
+    ].join('');
+
+    document.getElementById('threats-list').innerHTML = threats.length ? threats.map(t =>
+      `<div class="list-item"><div class="list-item-title">${t.description || t.threat_type}</div><div class="list-item-meta"><span>Severity: ${scoreBar(t.severity, 10, 'var(--red)')}</span><span>${t.timeframe || ''}</span></div>${t.defensive_action ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">Action: ${t.defensive_action}</div>` : ''}</div>`
+    ).join('') : emptyState('&#9888;', 'No threats detected', 'Good news — no competitive threats found in latest scan');
+
+    document.getElementById('opps-list').innerHTML = opps.length ? opps.map(o =>
+      `<div class="list-item"><div class="list-item-title">${o.description || o.opportunity_type}</div><div class="list-item-meta"><span>Value: ${scoreBar(o.potential_value, 10, 'var(--green)')}</span><span>Feasibility: ${o.feasibility}/10</span></div></div>`
+    ).join('') : emptyState('&#10003;', 'No opportunities found', 'Opportunities will appear after analysis');
+
+    document.getElementById('trends-list').innerHTML = trends.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Trend</th><th>Category</th><th>Direction</th><th>Strength</th></tr></thead><tbody>${trends.map(t =>
+        `<tr><td>${t.name}</td><td><span class="tag tag-purple">${t.category}</span></td><td>${t.direction}</td><td>${scoreBar(t.strength, 10)}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#8635;', 'No trends identified', 'Trends emerge from repeated scan analysis');
+
+    document.getElementById('competitors-list').innerHTML = profiles.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Competitor</th><th>Tier</th><th>Channels</th><th>Threat</th><th>Strategy</th></tr></thead><tbody>${profiles.map(p =>
+        `<tr><td><strong>${p.name}</strong></td><td>${p.tier}</td><td>${p.channel_count || '—'}</td><td>${scoreBar(p.threat_level, 10, 'var(--red)')}</td><td style="font-size:12px;max-width:300px">${p.strategy_focus || ''}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No competitor profiles', 'Profiles are built from scan data');
+  } catch (err) {
+    // Error already shown via toast
   }
-
-  const analysis = data.analysis || {};
-  const threats = analysis.threats || [];
-  const opps = analysis.opportunities || [];
-  const trends = analysis.trends || [];
-  const profiles = analysis.profiles || [];
-  const classified = data.classified?.intel || data.classified?.filtered || [];
-
-  document.getElementById('intel-stats').innerHTML = [
-    `<div class="card card-sm"><h3>Classified Intel</h3><div class="value">${classified.length}</div></div>`,
-    `<div class="card card-sm"><h3>Threats</h3><div class="value" style="color:var(--red)">${threats.length}</div></div>`,
-    `<div class="card card-sm"><h3>Opportunities</h3><div class="value" style="color:var(--green)">${opps.length}</div></div>`,
-  ].join('');
-
-  document.getElementById('threats-list').innerHTML = threats.length ? threats.map(t =>
-    `<div class="list-item"><div class="list-item-title">${t.description || t.threat_type}</div><div class="list-item-meta"><span>Severity: ${scoreBar(t.severity, 10, 'var(--red)')}</span><span>${t.timeframe || ''}</span></div>${t.defensive_action ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">Action: ${t.defensive_action}</div>` : ''}</div>`
-  ).join('') : '<div class="empty">No threats found</div>';
-
-  document.getElementById('opps-list').innerHTML = opps.length ? opps.map(o =>
-    `<div class="list-item"><div class="list-item-title">${o.description || o.opportunity_type}</div><div class="list-item-meta"><span>Value: ${scoreBar(o.potential_value, 10, 'var(--green)')}</span><span>Feasibility: ${o.feasibility}/10</span></div></div>`
-  ).join('') : '<div class="empty">No opportunities found</div>';
-
-  document.getElementById('trends-list').innerHTML = trends.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Trend</th><th>Category</th><th>Direction</th><th>Strength</th></tr></thead><tbody>${trends.map(t =>
-      `<tr><td>${t.name}</td><td><span class="tag tag-purple">${t.category}</span></td><td>${t.direction}</td><td>${scoreBar(t.strength, 10)}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No trends identified</div>';
-
-  document.getElementById('competitors-list').innerHTML = profiles.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Competitor</th><th>Tier</th><th>Channels</th><th>Threat</th><th>Strategy</th></tr></thead><tbody>${profiles.map(p =>
-      `<tr><td><strong>${p.name}</strong></td><td>${p.tier}</td><td>${p.channel_count || '—'}</td><td>${scoreBar(p.threat_level, 10, 'var(--red)')}</td><td style="font-size:12px;max-width:300px">${p.strategy_focus || ''}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No profiles</div>';
 }
 
 async function triggerScan() {
-  const r = await api('/api/intel/scan', { method: 'POST' });
-  alert('Scan started: ' + JSON.stringify(r));
+  try {
+    showToast('Starting competitive scan...', 'info');
+    const r = await api('/api/intel/scan', { method: 'POST' });
+    showToast('Scan started successfully', 'success');
+  } catch (err) {
+    // Error toast already shown
+  }
 }
 
 // --- Sentiment ---
 async function loadSentiment() {
-  const [summary, topics, feed] = await Promise.all([
-    api('/api/sentiment/summary'),
-    api('/api/sentiment/topics'),
-    api('/api/sentiment/feed?limit=50'),
-  ]);
+  showLoading('sentiment-cards');
+  showLoading('topics-list');
+  showLoading('feedback-list');
 
-  document.getElementById('sentiment-cards').innerHTML = [
-    `<div class="card card-sm"><h3>Total Feedback</h3><div class="value">${summary.total}</div></div>`,
-    `<div class="card card-sm"><h3>Avg Score</h3><div class="value" style="color:${summary.avg_score >= 0 ? 'var(--green)' : 'var(--red)'}">${summary.avg_score}</div><div class="sub">-1 to +1</div></div>`,
-    `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${summary.by_sentiment?.positive || 0}</div></div>`,
-    `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${summary.by_sentiment?.negative || 0}</div></div>`,
-  ].join('');
+  try {
+    const [summary, topics, feed] = await Promise.all([
+      api('/api/sentiment/summary'),
+      api('/api/sentiment/topics'),
+      api('/api/sentiment/feed?limit=50'),
+    ]);
 
-  // Sentiment pie chart
-  const pieCtx = document.getElementById('sentiment-pie');
-  if (pieCtx && summary.by_sentiment) {
-    if (window._sentimentChart) window._sentimentChart.destroy();
-    const sentData = summary.by_sentiment;
-    window._sentimentChart = new Chart(pieCtx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Positive', 'Negative', 'Neutral', 'Mixed'],
-        datasets: [{
-          data: [sentData.positive || 0, sentData.negative || 0, sentData.neutral || 0, sentData.mixed || 0],
-          backgroundColor: ['#3fb950', '#f85149', '#6e7681', '#d29922'],
-          borderColor: '#161b22',
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        cutout: '60%',
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#8b949e', padding: 12, font: { size: 11 } } },
-        },
-        animation: { duration: 600 },
-      },
-    });
+    document.getElementById('sentiment-cards').innerHTML = [
+      `<div class="card card-sm"><h3>Total Feedback</h3><div class="value">${summary.total}</div></div>`,
+      `<div class="card card-sm"><h3>Avg Score</h3><div class="value" style="color:${summary.avg_score >= 0 ? 'var(--green)' : 'var(--red)'}">${summary.avg_score}</div><div class="sub">-1 to +1</div></div>`,
+      `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${summary.by_sentiment?.positive || 0}</div></div>`,
+      `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${summary.by_sentiment?.negative || 0}</div></div>`,
+    ].join('');
+
+    // Sentiment pie chart
+    const pieCtx = document.getElementById('sentiment-pie');
+    if (pieCtx && summary.by_sentiment) {
+      if (window._sentimentChart) window._sentimentChart.destroy();
+      const sentData = summary.by_sentiment;
+      const hasData = (sentData.positive || 0) + (sentData.negative || 0) + (sentData.neutral || 0) + (sentData.mixed || 0) > 0;
+      if (hasData) {
+        window._sentimentChart = new Chart(pieCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Positive', 'Negative', 'Neutral', 'Mixed'],
+            datasets: [{
+              data: [sentData.positive || 0, sentData.negative || 0, sentData.neutral || 0, sentData.mixed || 0],
+              backgroundColor: ['#3fb950', '#f85149', '#6e7681', '#d29922'],
+              borderColor: '#161b22',
+              borderWidth: 2,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '60%',
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#8b949e', padding: 12, font: { size: 11 } } },
+            },
+            animation: { duration: 600 },
+          },
+        });
+      }
+    }
+
+    document.getElementById('topics-list').innerHTML = topics.length ? topics.map(t =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)"><span>${t.topic}</span><span class="tag tag-gray">${t.count}</span></div>`
+    ).join('') : emptyState('&#9829;', 'No topics yet', 'Add feedback to see emerging themes');
+
+    document.getElementById('feedback-list').innerHTML = feed.length ? feed.map(f =>
+      `<div class="list-item"><div style="display:flex;justify-content:space-between"><span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span><span style="font-size:11px;color:var(--text3)">${f.source}</span></div><div style="font-size:13px;margin-top:6px">${escapeHtml(f.text)}</div><div class="list-item-meta" style="margin-top:4px">${f.author ? `<span>${f.author}</span>` : ''}${f.collected_at ? `<span>${new Date(f.collected_at).toLocaleDateString()}</span>` : ''}</div></div>`
+    ).join('') : emptyState('&#9829;', 'No feedback yet', 'Collect user feedback from Reddit, App Store, or manual entries', '<button class="btn btn-primary btn-sm" onclick="showAddFeedback()">Add Feedback</button>');
+  } catch (err) {
+    // Error toast already shown
   }
-
-  document.getElementById('topics-list').innerHTML = topics.length ? topics.map(t =>
-    `<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)"><span>${t.topic}</span><span class="tag tag-gray">${t.count}</span></div>`
-  ).join('') : '<div class="empty">No topics yet. Add feedback to see themes.</div>';
-
-  document.getElementById('feedback-list').innerHTML = feed.length ? feed.map(f =>
-    `<div class="list-item"><div style="display:flex;justify-content:space-between"><span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span><span style="font-size:11px;color:var(--text3)">${f.source}</span></div><div style="font-size:13px;margin-top:6px">${f.text}</div><div class="list-item-meta" style="margin-top:4px">${f.author ? `<span>${f.author}</span>` : ''}${f.collected_at ? `<span>${new Date(f.collected_at).toLocaleDateString()}</span>` : ''}</div></div>`
-  ).join('') : '<div class="empty">No feedback yet</div>';
 }
 
 function showAddFeedback() {
@@ -732,84 +926,116 @@ function showAddFeedback() {
 }
 
 async function submitFeedback() {
-  const topics = document.getElementById('fb-topics').value.split(',').map(t => t.trim()).filter(Boolean);
-  await api('/api/sentiment/feedback', { method: 'POST', body: JSON.stringify({
-    source: document.getElementById('fb-source').value,
-    text: document.getElementById('fb-text').value,
-    sentiment: document.getElementById('fb-sentiment').value,
-    topics,
-  })});
-  hideModal();
-  loadSentiment();
+  try {
+    const topics = document.getElementById('fb-topics').value.split(',').map(t => t.trim()).filter(Boolean);
+    await api('/api/sentiment/feedback', { method: 'POST', body: JSON.stringify({
+      source: document.getElementById('fb-source').value,
+      text: document.getElementById('fb-text').value,
+      sentiment: document.getElementById('fb-sentiment').value,
+      topics,
+    })});
+    hideModal();
+    showToast('Feedback added', 'success');
+    loadSentiment();
+  } catch (err) {
+    // Error toast already shown
+  }
 }
 
 // --- Data Explorer ---
 async function loadDataExplorer() {
-  const [queries, tables, history] = await Promise.all([
-    api('/api/data/queries'),
-    api('/api/data/tables'),
-    api('/api/data/history?limit=10'),
-  ]);
+  showLoading('query-library');
+  showLoading('tables-ref');
+  showLoading('query-history');
 
-  document.getElementById('query-library').innerHTML = (queries.error ? [] : queries).map(q =>
-    `<div class="list-item" style="cursor:pointer" onclick="runNamedQuery('${q.name}')"><div class="list-item-title">${q.name}</div><div class="list-item-meta"><span>${q.description}</span></div></div>`
-  ).join('') || '<div class="empty">No queries available (Databricks not connected)</div>';
+  try {
+    const [queries, tables, history] = await Promise.all([
+      api('/api/data/queries'),
+      api('/api/data/tables'),
+      api('/api/data/history?limit=10'),
+    ]);
 
-  const t = tables;
-  document.getElementById('tables-ref').innerHTML = `
-    ${(t.primary || []).map(tbl => `<div style="padding:6px 0;border-bottom:1px solid var(--border)"><div style="font-family:monospace;font-size:12px;color:var(--accent)">${tbl.name}</div><div style="font-size:11px;color:var(--text3)">${tbl.description}${tbl.partition ? ` (partition: ${tbl.partition})` : ''}</div></div>`).join('')}
-    <div style="margin-top:12px;font-size:12px;color:var(--text2)"><strong>Gotchas:</strong></div>
-    ${(t.gotchas || []).map(g => `<div style="font-size:11px;color:var(--orange);padding:2px 0">&#9888; ${g}</div>`).join('')}
-  `;
+    document.getElementById('query-library').innerHTML = (queries.error ? [] : queries).map(q =>
+      `<div class="list-item" style="cursor:pointer" onclick="runNamedQuery('${escapeHtml(q.name)}')"><div class="list-item-title">${escapeHtml(q.name)}</div><div class="list-item-meta"><span>${escapeHtml(q.description)}</span></div></div>`
+    ).join('') || emptyState('&#9881;', 'No queries available', 'Databricks connection required for data queries');
 
-  document.getElementById('query-history').innerHTML = history.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Query</th><th>Rows</th><th>Time</th><th>When</th></tr></thead><tbody>${history.map(h =>
-      `<tr><td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px">${h.query_name || h.sql_text.substring(0, 60)}</td><td>${h.row_count}</td><td>${h.elapsed_sec}s</td><td style="font-size:11px">${new Date(h.created_at).toLocaleString()}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No query history</div>';
+    const t = tables;
+    document.getElementById('tables-ref').innerHTML = `
+      ${(t.primary || []).map(tbl => `<div style="padding:6px 0;border-bottom:1px solid var(--border)"><div style="font-family:monospace;font-size:12px;color:var(--accent)">${tbl.name}</div><div style="font-size:11px;color:var(--text3)">${tbl.description}${tbl.partition ? ` (partition: ${tbl.partition})` : ''}</div></div>`).join('')}
+      <div style="margin-top:12px;font-size:12px;color:var(--text2)"><strong>Gotchas:</strong></div>
+      ${(t.gotchas || []).map(g => `<div style="font-size:11px;color:var(--orange);padding:2px 0">&#9888; ${g}</div>`).join('')}
+    `;
+
+    document.getElementById('query-history').innerHTML = history.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Query</th><th>Rows</th><th>Time</th><th>When</th></tr></thead><tbody>${history.map(h =>
+        `<tr><td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px">${h.query_name || h.sql_text.substring(0, 60)}</td><td>${h.row_count}</td><td>${h.elapsed_sec}s</td><td style="font-size:11px">${new Date(h.created_at).toLocaleString()}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#8635;', 'No query history', 'Execute queries above to build history');
+  } catch (err) {
+    // Error toast already shown
+  }
 }
 
 async function runNamedQuery(name) {
   document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
-  const r = await api('/api/data/named', { method: 'POST', body: JSON.stringify({ name, days: 30, limit: 50 }) });
-  renderQueryResults(r);
+  try {
+    const r = await api('/api/data/named', { method: 'POST', body: JSON.stringify({ name, days: currentDateRange, limit: 50 }) });
+    renderQueryResults(r);
+  } catch (err) {
+    document.getElementById('query-status').textContent = 'Error';
+  }
 }
 
 async function runSQL() {
   const sql = document.getElementById('sql-input').value.trim();
   if (!sql) return;
   document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
-  const r = await api('/api/data/query', { method: 'POST', body: JSON.stringify({ sql, limit: 100 }) });
-  renderQueryResults(r);
+  try {
+    const r = await api('/api/data/query', { method: 'POST', body: JSON.stringify({ sql, limit: 100 }) });
+    renderQueryResults(r);
+  } catch (err) {
+    document.getElementById('query-status').textContent = 'Error';
+  }
 }
 
 function renderQueryResults(r) {
   if (r.error) {
-    document.getElementById('query-results').innerHTML = `<div style="color:var(--red);font-family:monospace;font-size:12px">${r.error}</div>`;
+    document.getElementById('query-results').innerHTML = `<div style="color:var(--red);font-family:monospace;font-size:12px">${escapeHtml(r.error)}</div>`;
     document.getElementById('query-status').textContent = `Error (${r.elapsed_sec || 0}s)`;
     return;
   }
   const cols = r.columns || [];
   const rows = r.rows || [];
   document.getElementById('query-status').textContent = `${r.row_count} rows (${r.elapsed_sec}s)`;
-  document.getElementById('query-results').innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  if (!rows.length) {
+    document.getElementById('query-results').innerHTML = emptyState('&#9881;', 'No results', 'Query returned 0 rows');
+    return;
+  }
+  document.getElementById('query-results').innerHTML = `<table><thead><tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 // --- Verifications ---
 async function loadVerifications() {
-  const data = await api('/api/strategy/verifications');
-  const stats = { match: 0, mismatch: 0, pending: 0 };
-  data.forEach(v => { if (stats[v.match_status] !== undefined) stats[v.match_status]++; });
+  showLoading('verify-stats-cards');
+  showLoading('verifications-table');
 
-  document.getElementById('verify-stats-cards').innerHTML = [
-    `<div class="card card-sm"><h3>Verified</h3><div class="value" style="color:var(--green)">${stats.match}</div></div>`,
-    `<div class="card card-sm"><h3>Mismatch</h3><div class="value" style="color:var(--red)">${stats.mismatch}</div></div>`,
-    `<div class="card card-sm"><h3>Pending</h3><div class="value">${stats.pending}</div></div>`,
-  ].join('');
+  try {
+    const data = await api('/api/strategy/verifications');
+    const stats = { match: 0, mismatch: 0, pending: 0 };
+    data.forEach(v => { if (stats[v.match_status] !== undefined) stats[v.match_status]++; });
 
-  document.getElementById('verifications-table').innerHTML = data.length ?
-    `<table><thead><tr><th>Metric</th><th>Expected</th><th>Actual</th><th>Source</th><th>Status</th></tr></thead><tbody>${data.map(v =>
-      `<tr><td>${v.metric_name}</td><td>${v.expected_value}</td><td>${v.actual_value}</td><td style="font-size:11px">${v.dashboard_source}</td><td>${statusTag(v.match_status)}</td></tr>`
-    ).join('')}</tbody></table>` : '<div class="empty">No verifications yet</div>';
+    document.getElementById('verify-stats-cards').innerHTML = [
+      `<div class="card card-sm"><h3>Verified</h3><div class="value" style="color:var(--green)">${stats.match}</div></div>`,
+      `<div class="card card-sm"><h3>Mismatch</h3><div class="value" style="color:var(--red)">${stats.mismatch}</div></div>`,
+      `<div class="card card-sm"><h3>Pending</h3><div class="value">${stats.pending}</div></div>`,
+    ].join('');
+
+    document.getElementById('verifications-table').innerHTML = data.length ?
+      `<table><thead><tr><th>Metric</th><th>Expected</th><th>Actual</th><th>Source</th><th>Status</th></tr></thead><tbody>${data.map(v =>
+        `<tr><td>${v.metric_name}</td><td>${v.expected_value}</td><td>${v.actual_value}</td><td style="font-size:11px">${v.dashboard_source}</td><td>${statusTag(v.match_status)}</td></tr>`
+      ).join('')}</tbody></table>` : emptyState('&#10003;', 'No verifications yet', 'Add data verification checks to track metric accuracy', '<button class="btn btn-primary btn-sm" onclick="showAddVerification()">Add Verification</button>');
+  } catch (err) {
+    // Error toast already shown
+  }
 }
 
 function showAddVerification() {
@@ -824,89 +1050,100 @@ function showAddVerification() {
 }
 
 async function submitVerification() {
-  await api('/api/strategy/verifications', { method: 'POST', body: JSON.stringify({
-    metric_name: document.getElementById('v-metric').value,
-    query_sql: document.getElementById('v-sql').value,
-    expected_value: document.getElementById('v-expected').value,
-    dashboard_source: document.getElementById('v-source').value,
-    notes: document.getElementById('v-notes').value,
-  })});
-  hideModal(); loadVerifications();
+  try {
+    await api('/api/strategy/verifications', { method: 'POST', body: JSON.stringify({
+      metric_name: document.getElementById('v-metric').value,
+      query_sql: document.getElementById('v-sql').value,
+      expected_value: document.getElementById('v-expected').value,
+      dashboard_source: document.getElementById('v-source').value,
+      notes: document.getElementById('v-notes').value,
+    })});
+    hideModal();
+    showToast('Verification added', 'success');
+    loadVerifications();
+  } catch (err) {}
 }
 
 // --- Features ---
 async function loadFeatures() {
-  const [roadmap, experiments] = await Promise.all([
-    api('/api/features/roadmap'),
-    api('/api/features/experiments'),
-  ]);
+  showLoading('roadmap-gantt');
+  showLoading('roadmap-view');
+  showLoading('experiments-list');
 
-  // Gantt timeline
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentMonth = new Date().getMonth();
-  const phaseTimeline = [
-    { start: 1, end: 5 },   // Phase 1: Feb-May
-    { start: 4, end: 7 },   // Phase 2: May-Jul
-    { start: 6, end: 9 },   // Phase 3: Jul-Sep
-    { start: 8, end: 11 },  // Phase 4: Sep-Nov
-  ];
+  try {
+    const [roadmap, experiments] = await Promise.all([
+      api('/api/features/roadmap'),
+      api('/api/features/experiments'),
+    ]);
 
-  let ganttHtml = `<div class="gantt">`;
-  ganttHtml += `<div class="gantt-header"><div class="gantt-legend">
-    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--accent)"></div> In Progress</div>
-    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--orange)"></div> Development</div>
-    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--green)"></div> Completed</div>
-    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--bg4);border:1px dashed var(--text3)"></div> Planned</div>
-  </div></div>`;
-  ganttHtml += `<div class="gantt-months">${months.map((m, i) =>
-    `<div class="gantt-month${i === currentMonth ? ' current' : ''}">${m}</div>`
-  ).join('')}</div>`;
+    // Gantt timeline
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = new Date().getMonth();
+    const phaseTimeline = [
+      { start: 1, end: 5 },
+      { start: 4, end: 7 },
+      { start: 6, end: 9 },
+      { start: 8, end: 11 },
+    ];
 
-  (roadmap.phases || []).forEach((phase, pi) => {
-    const timeline = phaseTimeline[pi] || { start: pi * 3, end: pi * 3 + 3 };
-    const left = (timeline.start / 12) * 100;
-    const width = ((timeline.end - timeline.start) / 12) * 100;
-    const barClass = 'gantt-bar-' + phase.status;
+    if (!(roadmap.phases || []).length) {
+      document.getElementById('roadmap-gantt').innerHTML = emptyState('&#9733;', 'No roadmap phases', 'Feature phases will appear here once defined');
+      document.getElementById('roadmap-view').innerHTML = '';
+    } else {
+      let ganttHtml = `<div class="gantt">`;
+      ganttHtml += `<div class="gantt-header"><div class="gantt-legend">
+        <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--accent)"></div> In Progress</div>
+        <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--orange)"></div> Development</div>
+        <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--green)"></div> Completed</div>
+        <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--bg4);border:1px dashed var(--text3)"></div> Planned</div>
+      </div></div>`;
+      ganttHtml += `<div class="gantt-months">${months.map((m, i) =>
+        `<div class="gantt-month${i === currentMonth ? ' current' : ''}">${m}</div>`
+      ).join('')}</div>`;
 
-    ganttHtml += `<div class="gantt-phase">`;
-    ganttHtml += `<div class="gantt-phase-label">${phase.name} ${statusTag(phase.status)}</div>`;
+      (roadmap.phases || []).forEach((phase, pi) => {
+        const timeline = phaseTimeline[pi] || { start: pi * 3, end: pi * 3 + 3 };
+        const left = (timeline.start / 12) * 100;
+        const width = ((timeline.end - timeline.start) / 12) * 100;
+        const barClass = 'gantt-bar-' + phase.status;
 
-    // Phase bar
-    ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${barClass}" style="left:${left}%;width:${width}%" title="${phase.name}">${phase.name}</div></div>`;
+        ganttHtml += `<div class="gantt-phase">`;
+        ganttHtml += `<div class="gantt-phase-label">${phase.name} ${statusTag(phase.status)}</div>`;
+        ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${barClass}" style="left:${left}%;width:${width}%" title="${phase.name}">${phase.name}</div></div>`;
 
-    // Experiment bars within the phase timespan
-    const expCount = phase.experiments.length;
-    phase.experiments.forEach((exp, ei) => {
-      const expStart = timeline.start + (ei / expCount) * (timeline.end - timeline.start);
-      const expEnd = timeline.start + ((ei + 1) / expCount) * (timeline.end - timeline.start);
-      const eLeft = (expStart / 12) * 100;
-      const eWidth = ((expEnd - expStart) / 12) * 100;
-      const eBarClass = 'gantt-bar-' + exp.status;
-      ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${eBarClass}" style="left:${eLeft}%;width:${eWidth}%" title="${exp.id} ${exp.name} (${exp.status})">${exp.id} ${exp.name}</div></div>`;
-    });
+        const expCount = phase.experiments.length;
+        phase.experiments.forEach((exp, ei) => {
+          const expStart = timeline.start + (ei / expCount) * (timeline.end - timeline.start);
+          const expEnd = timeline.start + ((ei + 1) / expCount) * (timeline.end - timeline.start);
+          const eLeft = (expStart / 12) * 100;
+          const eWidth = ((expEnd - expStart) / 12) * 100;
+          const eBarClass = 'gantt-bar-' + exp.status;
+          ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${eBarClass}" style="left:${eLeft}%;width:${eWidth}%" title="${exp.id} ${exp.name} (${exp.status})">${exp.id} ${exp.name}</div></div>`;
+        });
 
-    ganttHtml += `</div>`;
-  });
-  ganttHtml += `</div>`;
-  document.getElementById('roadmap-gantt').innerHTML = ganttHtml;
+        ganttHtml += `</div>`;
+      });
+      ganttHtml += `</div>`;
+      document.getElementById('roadmap-gantt').innerHTML = ganttHtml;
 
-  // Phase detail cards (existing view)
-  document.getElementById('roadmap-view').innerHTML = (roadmap.phases || []).map(phase => `
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="color:var(--text);font-size:14px">${phase.name}</h3>
-        ${statusTag(phase.status)}
-      </div>
-      <div class="table-wrap"><table><thead><tr><th>Experiment</th><th>Status</th><th>Metrics</th></tr></thead><tbody>
-      ${phase.experiments.map(e => `<tr><td>${e.id} ${e.name}</td><td>${statusTag(e.status)}</td><td style="font-size:11px">${e.metrics.join(', ')}</td></tr>`).join('')}
-      </tbody></table></div>
-    </div>
-  `).join('');
+      document.getElementById('roadmap-view').innerHTML = (roadmap.phases || []).map(phase => `
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:var(--text);font-size:14px">${phase.name}</h3>
+            ${statusTag(phase.status)}
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Experiment</th><th>Status</th><th>Metrics</th></tr></thead><tbody>
+          ${phase.experiments.map(e => `<tr><td>${e.id} ${e.name}</td><td>${statusTag(e.status)}</td><td style="font-size:11px">${e.metrics.join(', ')}</td></tr>`).join('')}
+          </tbody></table></div>
+        </div>
+      `).join('');
+    }
 
-  document.getElementById('experiments-list').innerHTML = experiments.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Hypothesis</th></tr></thead><tbody>${experiments.map(e =>
-      `<tr><td>${e.name}</td><td>${e.phase}</td><td>${statusTag(e.status)}</td><td style="font-size:12px;max-width:300px">${e.hypothesis || ''}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No experiments tracked yet</div>';
+    document.getElementById('experiments-list').innerHTML = experiments.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Hypothesis</th></tr></thead><tbody>${experiments.map(e =>
+        `<tr><td>${e.name}</td><td>${e.phase}</td><td>${statusTag(e.status)}</td><td style="font-size:12px;max-width:300px">${e.hypothesis || ''}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#9733;', 'No experiments tracked', 'Add experiments to track hypotheses and results', '<button class="btn btn-primary btn-sm" onclick="showAddExperiment()">Add Experiment</button>');
+  } catch (err) {}
 }
 
 function showAddExperiment() {
@@ -920,41 +1157,52 @@ function showAddExperiment() {
 }
 
 async function submitExperiment() {
-  await api('/api/features/experiments', { method: 'POST', body: JSON.stringify({
-    name: document.getElementById('exp-name').value,
-    phase: document.getElementById('exp-phase').value,
-    hypothesis: document.getElementById('exp-hypothesis').value,
-    status: document.getElementById('exp-status').value,
-  })});
-  hideModal(); loadFeatures();
+  try {
+    await api('/api/features/experiments', { method: 'POST', body: JSON.stringify({
+      name: document.getElementById('exp-name').value,
+      phase: document.getElementById('exp-phase').value,
+      hypothesis: document.getElementById('exp-hypothesis').value,
+      status: document.getElementById('exp-status').value,
+    })});
+    hideModal();
+    showToast('Experiment added', 'success');
+    loadFeatures();
+  } catch (err) {}
 }
 
 // --- OEM ---
 async function loadOEM() {
-  const [platforms, snapshots, gracenote] = await Promise.all([
-    api('/api/oem/platforms'),
-    api('/api/oem/snapshots'),
-    api('/api/oem/gracenote'),
-  ]);
+  showLoading('platform-cards');
+  showLoading('gracenote-list');
+  showLoading('oem-history');
 
-  document.getElementById('platform-cards').innerHTML = (platforms.platforms || []).map(p => `
-    <div class="card">
-      <h3 style="color:var(--text)">${p.name}</h3>
-      ${p.tvt_share ? `<div style="font-size:12px">TVT Share: <strong>${p.tvt_share}%</strong></div>` : ''}
-      <div style="font-size:12px;margin-top:4px">Dependency: <span class="tag tag-${p.dependency_level === 'critical' ? 'red' : p.dependency_level === 'high' ? 'orange' : 'gray'}">${p.dependency_level}</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">${p.notes}</div>
-    </div>
-  `).join('');
+  try {
+    const [platforms, snapshots, gracenote] = await Promise.all([
+      api('/api/oem/platforms'),
+      api('/api/oem/snapshots'),
+      api('/api/oem/gracenote'),
+    ]);
 
-  document.getElementById('gracenote-list').innerHTML = gracenote.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Tubi ID</th><th>Gracenote ID</th><th>Name</th><th>Type</th><th>Status</th></tr></thead><tbody>${gracenote.map(m =>
-      `<tr><td style="font-family:monospace;font-size:11px">${m.tubi_content_id}</td><td style="font-family:monospace;font-size:11px">${m.gracenote_id || '—'}</td><td>${m.content_name}</td><td>${m.content_type}</td><td>${statusTag(m.match_status)}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No Gracenote mappings yet</div>';
+    const platformList = platforms.platforms || [];
+    document.getElementById('platform-cards').innerHTML = platformList.length ? platformList.map(p => `
+      <div class="card">
+        <h3 style="color:var(--text)">${p.name}</h3>
+        ${p.tvt_share ? `<div style="font-size:12px">TVT Share: <strong>${p.tvt_share}%</strong></div>` : ''}
+        <div style="font-size:12px;margin-top:4px">Dependency: <span class="tag tag-${p.dependency_level === 'critical' ? 'red' : p.dependency_level === 'high' ? 'orange' : 'gray'}">${p.dependency_level}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">${p.notes}</div>
+      </div>
+    `).join('') : emptyState('&#9635;', 'No platforms tracked', 'Add OEM platform snapshots to track placement');
 
-  document.getElementById('oem-history').innerHTML = snapshots.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Platform</th><th>Date</th><th>Notes</th></tr></thead><tbody>${snapshots.map(s =>
-      `<tr><td>${s.platform}</td><td>${s.date}</td><td style="font-size:12px">${s.notes}</td></tr>`
-    ).join('')}</tbody></table></div>` : '<div class="empty">No OEM snapshots yet. Add placement data to track changes.</div>';
+    document.getElementById('gracenote-list').innerHTML = gracenote.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Tubi ID</th><th>Gracenote ID</th><th>Name</th><th>Type</th><th>Status</th></tr></thead><tbody>${gracenote.map(m =>
+        `<tr><td style="font-family:monospace;font-size:11px">${m.tubi_content_id}</td><td style="font-family:monospace;font-size:11px">${m.gracenote_id || '—'}</td><td>${m.content_name}</td><td>${m.content_type}</td><td>${statusTag(m.match_status)}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No Gracenote mappings', 'Mappings connect Tubi content IDs to Gracenote metadata');
+
+    document.getElementById('oem-history').innerHTML = snapshots.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Platform</th><th>Date</th><th>Notes</th></tr></thead><tbody>${snapshots.map(s =>
+        `<tr><td>${s.platform}</td><td>${s.date}</td><td style="font-size:12px">${s.notes}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No OEM snapshots', 'Track platform placement changes over time', '<button class="btn btn-primary btn-sm" onclick="showAddOEM()">Add Snapshot</button>');
+  } catch (err) {}
 }
 
 function showAddOEM() {
@@ -967,43 +1215,116 @@ function showAddOEM() {
 }
 
 async function submitOEM() {
-  await api('/api/oem/snapshots', { method: 'POST', body: JSON.stringify({
-    platform: document.getElementById('oem-platform').value,
-    date: document.getElementById('oem-date').value,
-    notes: document.getElementById('oem-notes').value,
-  })});
-  hideModal(); loadOEM();
+  try {
+    await api('/api/oem/snapshots', { method: 'POST', body: JSON.stringify({
+      platform: document.getElementById('oem-platform').value,
+      date: document.getElementById('oem-date').value,
+      notes: document.getElementById('oem-notes').value,
+    })});
+    hideModal();
+    showToast('OEM snapshot added', 'success');
+    loadOEM();
+  } catch (err) {}
 }
 
 // --- Work Queue ---
 async function loadWork() {
-  const status = document.getElementById('work-filter')?.value || '';
-  const type = document.getElementById('work-type-filter')?.value || '';
-  const params = new URLSearchParams();
-  if (status) params.set('status', status);
-  if (type) params.set('type', type);
-  const items = await api('/api/strategy/work?' + params);
+  showLoading('work-stats-cards');
+  showLoading('work-list');
 
-  const stats = { open: 0, in_progress: 0, blocked: 0, done: 0 };
-  items.forEach(w => { if (stats[w.status] !== undefined) stats[w.status]++; });
+  try {
+    const status = document.getElementById('work-filter')?.value || '';
+    const type = document.getElementById('work-type-filter')?.value || '';
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (type) params.set('type', type);
+    const items = await api('/api/strategy/work?' + params);
 
-  document.getElementById('work-stats-cards').innerHTML = [
-    `<div class="card card-sm"><h3>Open</h3><div class="value">${stats.open}</div></div>`,
-    `<div class="card card-sm"><h3>In Progress</h3><div class="value" style="color:var(--orange)">${stats.in_progress}</div></div>`,
-    `<div class="card card-sm"><h3>Blocked</h3><div class="value" style="color:var(--red)">${stats.blocked}</div></div>`,
-    `<div class="card card-sm"><h3>Done</h3><div class="value" style="color:var(--green)">${stats.done}</div></div>`,
-  ].join('');
+    const stats = { open: 0, in_progress: 0, blocked: 0, done: 0 };
+    items.forEach(w => { if (stats[w.status] !== undefined) stats[w.status]++; });
 
-  document.getElementById('work-list').innerHTML = items.length ? items.map(w => `
-    <div class="list-item">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="list-item-title">${w.title}</div>
-        <div style="display:flex;gap:6px">${priorityTag(w.priority)} ${statusTag(w.status)} <span class="tag tag-gray">${w.type}</span></div>
+    document.getElementById('work-stats-cards').innerHTML = [
+      `<div class="card card-sm"><h3>Open</h3><div class="value">${stats.open}</div></div>`,
+      `<div class="card card-sm"><h3>In Progress</h3><div class="value" style="color:var(--orange)">${stats.in_progress}</div></div>`,
+      `<div class="card card-sm"><h3>Blocked</h3><div class="value" style="color:var(--red)">${stats.blocked}</div></div>`,
+      `<div class="card card-sm"><h3>Done</h3><div class="value" style="color:var(--green)">${stats.done}</div></div>`,
+    ].join('');
+
+    document.getElementById('work-list').innerHTML = items.length ? items.map(w => `
+      <div class="list-item" data-work-id="${w.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="list-item-title">${escapeHtml(w.title)}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${priorityTag(w.priority)}
+            <select class="status-select" onchange="updateWorkStatus(${w.id}, this.value)" title="Change status">
+              ${['open','in_progress','blocked','done'].map(s => `<option value="${s}" ${w.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+            <span class="tag tag-gray">${w.type}</span>
+            <div class="work-actions">
+              ${w.status !== 'done' ? `<button class="btn-icon btn-done" onclick="updateWorkStatus(${w.id}, 'done')" title="Mark done">&#10003;</button>` : ''}
+              <button class="btn-icon" onclick="showEditWork(${w.id})" title="Edit">&#9998;</button>
+            </div>
+          </div>
+        </div>
+        ${w.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(w.description).substring(0, 150)}</div>` : ''}
+        <div class="list-item-meta" style="margin-top:4px">${w.owner ? `<span>Owner: ${w.owner}</span>` : ''}<span>${new Date(w.created_at).toLocaleDateString()}</span></div>
       </div>
-      ${w.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${w.description.substring(0, 150)}</div>` : ''}
-      <div class="list-item-meta" style="margin-top:4px">${w.owner ? `<span>Owner: ${w.owner}</span>` : ''}<span>${new Date(w.created_at).toLocaleDateString()}</span></div>
-    </div>
-  `).join('') : '<div class="empty">No work items</div>';
+    `).join('') : emptyState('&#9744;', 'No work items', 'Create tasks, PRDs, investigations, and plans to track work', '<button class="btn btn-primary btn-sm" onclick="showAddWork()">Add Work Item</button>');
+  } catch (err) {}
+}
+
+async function updateWorkStatus(id, newStatus) {
+  try {
+    await api(`/api/strategy/work/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    showToast(`Work item ${newStatus === 'done' ? 'completed' : 'updated to ' + newStatus}`, 'success');
+    loadWork();
+  } catch (err) {}
+}
+
+function showEditWork(id) {
+  // Find the work item in the DOM
+  const el = document.querySelector(`[data-work-id="${id}"]`);
+  if (!el) return;
+  const title = el.querySelector('.list-item-title')?.textContent || '';
+
+  showModal('Edit Work Item', `
+    <div class="form-group"><label>Title</label><input type="text" id="we-title" value="${escapeHtml(title)}"></div>
+    <div class="form-group"><label>Status</label><select id="we-status">
+      <option value="open">open</option><option value="in_progress">in_progress</option>
+      <option value="blocked">blocked</option><option value="done">done</option>
+    </select></div>
+    <div class="form-group"><label>Priority</label><select id="we-priority">
+      <option value="medium">medium</option><option value="critical">critical</option>
+      <option value="high">high</option><option value="low">low</option>
+    </select></div>
+    <div class="form-group"><label>Owner</label><input type="text" id="we-owner"></div>
+    <button class="btn btn-primary" onclick="submitEditWork(${id})">Update</button>
+  `);
+}
+
+async function submitEditWork(id) {
+  try {
+    const updates = {};
+    const title = document.getElementById('we-title').value;
+    const status = document.getElementById('we-status').value;
+    const priority = document.getElementById('we-priority').value;
+    const owner = document.getElementById('we-owner').value;
+    if (title) updates.title = title;
+    if (status) updates.status = status;
+    if (priority) updates.priority = priority;
+    if (owner) updates.owner = owner;
+
+    await api(`/api/strategy/work/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    hideModal();
+    showToast('Work item updated', 'success');
+    loadWork();
+  } catch (err) {}
 }
 
 function showAddWork() {
@@ -1018,32 +1339,42 @@ function showAddWork() {
 }
 
 async function submitWork() {
-  await api('/api/strategy/work', { method: 'POST', body: JSON.stringify({
-    type: document.getElementById('w-type').value,
-    title: document.getElementById('w-title').value,
-    description: document.getElementById('w-desc').value,
-    priority: document.getElementById('w-priority').value,
-    owner: document.getElementById('w-owner').value,
-  })});
-  hideModal(); loadWork();
+  try {
+    const title = document.getElementById('w-title').value.trim();
+    if (!title) { showToast('Title is required', 'error'); return; }
+    await api('/api/strategy/work', { method: 'POST', body: JSON.stringify({
+      type: document.getElementById('w-type').value,
+      title: title,
+      description: document.getElementById('w-desc').value,
+      priority: document.getElementById('w-priority').value,
+      owner: document.getElementById('w-owner').value,
+    })});
+    hideModal();
+    showToast('Work item created', 'success');
+    loadWork();
+  } catch (err) {}
 }
 
 // --- Learnings ---
 async function loadLearnings() {
-  const cat = document.getElementById('learning-filter')?.value || '';
-  const params = cat ? `?category=${cat}` : '';
-  const items = await api('/api/strategy/learnings' + params);
+  showLoading('learnings-list');
 
-  document.getElementById('learnings-list').innerHTML = items.length ? items.map(l => `
-    <div class="list-item">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="list-item-title">${l.title}</div>
-        <div style="display:flex;gap:6px"><span class="tag tag-purple">${l.category}</span>${l.verified ? '<span class="tag tag-green">verified</span>' : ''}</div>
+  try {
+    const cat = document.getElementById('learning-filter')?.value || '';
+    const params = cat ? `?category=${cat}` : '';
+    const items = await api('/api/strategy/learnings' + params);
+
+    document.getElementById('learnings-list').innerHTML = items.length ? items.map(l => `
+      <div class="list-item">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="list-item-title">${escapeHtml(l.title)}</div>
+          <div style="display:flex;gap:6px"><span class="tag tag-purple">${l.category}</span>${l.verified ? '<span class="tag tag-green">verified</span>' : ''}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(l.description)}</div>
+        ${l.source ? `<div class="list-item-meta" style="margin-top:4px"><span>Source: ${escapeHtml(l.source)}</span></div>` : ''}
       </div>
-      <div style="font-size:12px;color:var(--text2);margin-top:4px">${l.description}</div>
-      ${l.source ? `<div class="list-item-meta" style="margin-top:4px"><span>Source: ${l.source}</span></div>` : ''}
-    </div>
-  `).join('') : '<div class="empty">No learnings yet. Record data issues, gotchas, and verified facts.</div>';
+    `).join('') : emptyState('&#9998;', 'No learnings yet', 'Record data issues, query gotchas, and verified facts', '<button class="btn btn-primary btn-sm" onclick="showAddLearning()">Add Learning</button>');
+  } catch (err) {}
 }
 
 function showAddLearning() {
@@ -1057,31 +1388,39 @@ function showAddLearning() {
 }
 
 async function submitLearning() {
-  await api('/api/strategy/learnings', { method: 'POST', body: JSON.stringify({
-    category: document.getElementById('l-cat').value,
-    title: document.getElementById('l-title').value,
-    description: document.getElementById('l-desc').value,
-    source: document.getElementById('l-source').value,
-  })});
-  hideModal(); loadLearnings();
+  try {
+    await api('/api/strategy/learnings', { method: 'POST', body: JSON.stringify({
+      category: document.getElementById('l-cat').value,
+      title: document.getElementById('l-title').value,
+      description: document.getElementById('l-desc').value,
+      source: document.getElementById('l-source').value,
+    })});
+    hideModal();
+    showToast('Learning recorded', 'success');
+    loadLearnings();
+  } catch (err) {}
 }
 
 // --- Changelog ---
 async function loadChangelog() {
-  const type = document.getElementById('changelog-filter')?.value || '';
-  const params = type ? `?type=${type}` : '';
-  const items = await api('/api/strategy/changelog' + params);
+  showLoading('changelog-list');
 
-  document.getElementById('changelog-list').innerHTML = items.length ? items.map(c => `
-    <div class="list-item">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="list-item-title">${c.title}</div>
-        <div style="display:flex;gap:6px"><span class="tag tag-blue">${c.type}</span><span style="font-size:11px;color:var(--text3)">${new Date(c.created_at).toLocaleDateString()}</span></div>
+  try {
+    const type = document.getElementById('changelog-filter')?.value || '';
+    const params = type ? `?type=${type}` : '';
+    const items = await api('/api/strategy/changelog' + params);
+
+    document.getElementById('changelog-list').innerHTML = items.length ? items.map(c => `
+      <div class="list-item">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="list-item-title">${escapeHtml(c.title)}</div>
+          <div style="display:flex;gap:6px"><span class="tag tag-blue">${c.type}</span><span style="font-size:11px;color:var(--text3)">${new Date(c.created_at).toLocaleDateString()}</span></div>
+        </div>
+        ${c.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(c.description)}</div>` : ''}
+        ${c.impact ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">Impact: ${escapeHtml(c.impact)}</div>` : ''}
       </div>
-      ${c.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${c.description}</div>` : ''}
-      ${c.impact ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">Impact: ${c.impact}</div>` : ''}
-    </div>
-  `).join('') : '<div class="empty">No changelog entries yet</div>';
+    `).join('') : emptyState('&#8635;', 'No changelog entries', 'Record decisions, launches, findings, and changes', '<button class="btn btn-primary btn-sm" onclick="showAddChange()">Add Entry</button>');
+  } catch (err) {}
 }
 
 function showAddChange() {
@@ -1095,13 +1434,17 @@ function showAddChange() {
 }
 
 async function submitChange() {
-  await api('/api/strategy/changelog', { method: 'POST', body: JSON.stringify({
-    type: document.getElementById('c-type').value,
-    title: document.getElementById('c-title').value,
-    description: document.getElementById('c-desc').value,
-    impact: document.getElementById('c-impact').value,
-  })});
-  hideModal(); loadChangelog();
+  try {
+    await api('/api/strategy/changelog', { method: 'POST', body: JSON.stringify({
+      type: document.getElementById('c-type').value,
+      title: document.getElementById('c-title').value,
+      description: document.getElementById('c-desc').value,
+      impact: document.getElementById('c-impact').value,
+    })});
+    hideModal();
+    showToast('Changelog entry added', 'success');
+    loadChangelog();
+  } catch (err) {}
 }
 
 // --- Monitor ---
@@ -1164,28 +1507,41 @@ async function triggerFreshnessCheck() {
 }
 
 // --- Search ---
+function loadSearchPage() {
+  // Show empty state if no results yet
+  const results = document.getElementById('search-results');
+  if (!results.innerHTML.trim() || results.innerHTML.includes('spinner')) {
+    results.innerHTML = emptyState('&#8981;', 'Search across all hub data', 'Enter a query to search intel, learnings, work items, and more');
+  }
+}
+
 async function runSearch() {
   const q = document.getElementById('search-input').value.trim();
   if (!q) return;
-  document.getElementById('search-results').innerHTML = '<div class="spinner"></div>';
-  const r = await api('/api/search/?q=' + encodeURIComponent(q));
+  document.getElementById('search-results').innerHTML = `<div class="loading-overlay"><span class="spinner spinner-lg"></span> Searching...</div>`;
 
-  let html = '';
-  for (const [source, items] of Object.entries(r.sources || {})) {
-    if (items.error) {
-      html += `<div class="card" style="margin-bottom:12px"><h3>${source}</h3><div style="color:var(--text3);font-size:12px">${items.error}</div></div>`;
-      continue;
+  try {
+    const r = await api('/api/search/?q=' + encodeURIComponent(q));
+
+    let html = '';
+    for (const [source, items] of Object.entries(r.sources || {})) {
+      if (items.error) {
+        html += `<div class="card" style="margin-bottom:12px"><h3>${escapeHtml(source)}</h3><div style="color:var(--text3);font-size:12px">${escapeHtml(items.error)}</div></div>`;
+        continue;
+      }
+      const list = Array.isArray(items) ? items : (items.documents || []).map((d, i) => ({ text: d, distance: items.distances?.[i] }));
+      if (!list.length) continue;
+      html += `<div class="card" style="margin-bottom:12px"><h3 style="color:var(--text)">${escapeHtml(source)} <span class="count">(${list.length})</span></h3>`;
+      html += list.slice(0, 10).map(item => {
+        const title = item.title || item.text?.substring(0, 100) || JSON.stringify(item).substring(0, 100);
+        return `<div class="list-item"><div class="list-item-title">${escapeHtml(title)}</div></div>`;
+      }).join('');
+      html += '</div>';
     }
-    const list = Array.isArray(items) ? items : (items.documents || []).map((d, i) => ({ text: d, distance: items.distances?.[i] }));
-    if (!list.length) continue;
-    html += `<div class="card" style="margin-bottom:12px"><h3 style="color:var(--text)">${source} <span class="count">(${list.length})</span></h3>`;
-    html += list.slice(0, 10).map(item => {
-      const title = item.title || item.text?.substring(0, 100) || JSON.stringify(item).substring(0, 100);
-      return `<div class="list-item"><div class="list-item-title">${title}</div></div>`;
-    }).join('');
-    html += '</div>';
+    document.getElementById('search-results').innerHTML = html || emptyState('&#8981;', 'No results found', `No matches for "${escapeHtml(q)}"`);
+  } catch (err) {
+    document.getElementById('search-results').innerHTML = emptyState('&#9888;', 'Search failed', 'Check server connection and try again');
   }
-  document.getElementById('search-results').innerHTML = html || '<div class="empty">No results found</div>';
 }
 
 // --- Modal ---
@@ -1199,7 +1555,7 @@ document.getElementById('modal').addEventListener('click', e => { if (e.target =
 // --- Health Check ---
 async function checkHealth() {
   try {
-    const r = await api('/health');
+    const r = await fetch(API + '/health').then(res => res.json());
     document.getElementById('health-indicator').innerHTML = r.status === 'ok' ? '<span style="color:var(--green)">Connected</span>' : '<span style="color:var(--red)">Error</span>';
   } catch {
     document.getElementById('health-indicator').innerHTML = '<span style="color:var(--red)">Offline</span>';
@@ -1207,6 +1563,8 @@ async function checkHealth() {
 }
 
 // --- Init ---
+updateDateRangeVisibility('dashboard');
+startAutoRefresh();
 loadDashboard();
 checkHealth();
 </script>
