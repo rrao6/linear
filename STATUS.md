@@ -116,7 +116,60 @@ Track every data point we verify against dashboards or other sources.
 | entry-points.md | Initiative context | Good |
 | open-questions.md | 6 strategic questions tracked | Good |
 
+## Hub Architecture
+
+### Routers (8 total, 43 endpoints)
+
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| dashboard | `/api/dashboard` | 2 (GET) | KPI overview with live Databricks queries + goals |
+| intel | `/api/intel` | 8 (7 GET, 1 POST) | CI pipeline results, scan triggers |
+| data | `/api/data` | 5 (3 GET, 2 POST) | Databricks query proxy + canonical queries |
+| sentiment | `/api/sentiment` | 6 (3 GET, 3 POST) | Feedback aggregation, Sprout Social ingest |
+| features | `/api/features` | 4 (2 GET, 1 POST, 1 PUT) | Experiment tracking, EPG roadmap |
+| oem | `/api/oem` | 5 (3 GET, 2 POST) | OEM placement tracking, Gracenote mappings |
+| strategy | `/api/strategy` | 9 (4 GET, 4 POST, 1 PUT) | Work items, learnings, verifications, PRD generator |
+| search | `/api/search` | 2 (GET) | Unified search across ChromaDB + hub DB |
+
+### Collectors (4)
+
+| Collector | Module | Status | Notes |
+|-----------|--------|--------|-------|
+| Reddit | `hub/collectors/reddit.py` | **WORKING** | PRAW + RSS fallback, OpenAI sentiment classification |
+| App Store | `hub/collectors/appstore.py` | **WORKING** | Apple RSS feed, Google placeholder |
+| Sprout Social | `hub/collectors/sprout.py` | **SKELETON** | API client built, needs valid API key |
+| Manual | `hub/collectors/manual.py` | **WORKING** | CLI + JSON file input |
+
+### Database Tables (10 in hub/db.py)
+
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `work_items` | Tasks, PRDs, investigations | type, title, status, priority, owner |
+| `learnings` | Verified facts, gotchas | category, title, verified |
+| `data_verifications` | Dashboard metric verification | metric_name, expected/actual, match_status |
+| `feedback` | Sentiment data from all sources | source, text, sentiment, score, topics |
+| `experiments` | Feature adoption tracking | name, phase, hypothesis, status, metrics |
+| `oem_snapshots` | Platform placement snapshots | platform, date, tubi_placement |
+| `gracenote_mappings` | Tubi-to-Gracenote ID mappings | tubi_content_id, gracenote_id, match_status |
+| `query_history` | Databricks query log | sql_text, row_count, elapsed_sec, error |
+| `change_log` | Decisions and changes | type, title, impact, evidence |
+| `kpi_cache` | Databricks query result cache (1hr TTL) | key, value (JSON), fetched_at |
+
+### API Documentation
+
+Full endpoint reference: [docs/API.md](docs/API.md)
+
 ## Changelog
+
+### 2026-02-15 (update 5)
+- Code quality review and cleanup across entire hub/
+  - Removed unused imports: `date`/`datetime`/`Path` from dashboard.py, `Query` from intel.py, `Path`/`QueryParam`/`json` from data.py, `json` from search.py, `sys` from server.py, `Path` from db.py
+  - Resolved merge conflict in dashboard.py (live Databricks queries from concurrent worker)
+  - Added error handling for `GET /api/intel/run/{scan_date}/{run_id}` (missing run directory check)
+- Created docs/API.md — full 43-endpoint reference with curl examples
+- Updated STATUS.md with hub architecture (routers, collectors, tables), endpoint counts
+- Updated ROADMAP.md — marked P1-1 (Live Databricks Dashboard) as done
+- db.py now has 10 tables (added kpi_cache for Databricks query result caching)
 
 ### 2026-02-15 (update 4)
 - Built full 6-phase competitive intelligence pipeline (`tools/scanner/orchestrator.py`)

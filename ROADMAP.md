@@ -31,13 +31,14 @@
 
 The hub needs to show **live data**, not stubs. A PM should open it and see current numbers.
 
-### P1-1: Live Databricks Dashboard
-Wire the dashboard overview to pull real KPIs from Databricks on each load:
-- Current linear TVT share (last 30d)
-- TVT trend (daily for last 90d)
-- Top 10 channels with TVT hours
-- Platform breakdown (Amazon, Roku, Samsung, etc.)
-- Cache results for 1 hour in SQLite to avoid hammering Databricks
+### P1-1: Live Databricks Dashboard -- DONE
+~~Wire the dashboard overview to pull real KPIs from Databricks on each load:~~
+- [x] Current linear TVT share (last 30d)
+- [x] TVT trend (daily for last 90d)
+- [x] Top 10 channels with TVT hours
+- [x] Platform breakdown (Amazon, Roku, Samsung, etc.)
+- [x] Cache results for 1 hour in SQLite (`kpi_cache` table) to avoid hammering Databricks
+- [x] Fallback to hardcoded values when Databricks is unavailable
 
 ### P1-2: Data Verification Deep Dive
 Resolve the known discrepancies:

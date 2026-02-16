@@ -1,6 +1,5 @@
 """Unified search: semantic search across all hub data."""
 
-import json
 import sys
 
 from fastapi import APIRouter

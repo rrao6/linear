@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks
 
 from ..config import SCANS_DIR, SCANNER_DIR
 
@@ -52,6 +52,9 @@ def list_runs():
 @router.get("/run/{scan_date}/{run_id}")
 def get_run(scan_date: str, run_id: str):
     """Get full data for a specific run."""
+    run_dir = SCANS_DIR / scan_date / run_id
+    if not run_dir.is_dir():
+        return {"error": f"Run not found: {scan_date}/{run_id}"}
     return _load_run_data(scan_date, run_id)
 
 

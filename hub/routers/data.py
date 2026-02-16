@@ -1,11 +1,9 @@
 """Data explorer: Databricks query proxy and query library."""
 
-import json
 import sys
 import time
-from pathlib import Path
 
-from fastapi import APIRouter, Query as QueryParam
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ..config import PLUGINS_DIR
