@@ -4,6 +4,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
+from typing import Optional
 
 from .config import HUB_DB_PATH
 
@@ -175,6 +176,16 @@ CREATE TABLE IF NOT EXISTS kpi_cache (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,           -- JSON-encoded result
     fetched_at TEXT NOT NULL       -- ISO timestamp of when data was fetched
+);
+
+-- Generated PRDs
+CREATE TABLE IF NOT EXISTS prds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic TEXT NOT NULL,
+    content_md TEXT NOT NULL,
+    status TEXT DEFAULT 'draft',   -- draft, reviewed, approved
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 -- QA accuracy checks: continuous data verification
@@ -572,6 +583,49 @@ def set_cached_kpi(key: str, value) -> None:
         )
 
 
+# --- PRDs ---
+
+def create_prd(topic: str, content_md: str, status: str = "draft") -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO prds (topic, content_md, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (topic, content_md, status, now_iso(), now_iso())
+        )
+        return cur.lastrowid
+
+
+def get_prds(status: str = None, limit: int = 100) -> list:
+    with get_db() as conn:
+        query = "SELECT * FROM prds WHERE 1=1"
+        params = []
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def get_prd(id: int) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM prds WHERE id = ?", (id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_prd(id: int, **kwargs) -> bool:
+    allowed = {"topic", "content_md", "status"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return False
+    updates["updated_at"] = now_iso()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    with get_db() as conn:
+        conn.execute(f"UPDATE prds SET {set_clause} WHERE id = ?",
+                     list(updates.values()) + [id])
+    return True
+
+
 # --- Data Sources (Monitoring) ---
 
 def upsert_data_source(source_name: str, status: str = "unknown",
@@ -750,7 +804,6 @@ def get_insights(limit: int = 100) -> list:
     with get_db() as conn:
         return [dict(r) for r in conn.execute(
             "SELECT * FROM insights ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
->>>>>>> 3fe94d3 (Add knowledge engine: PRD reviewer, idea generator, insight synthesizer, weekly digest)
 
 
 # Initialize on import
