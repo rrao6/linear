@@ -173,6 +173,7 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
     <a class="nav-item" data-page="oem"><span class="icon">&#9635;</span> OEM Tracker</a>
 
     <div class="nav-section">Operations</div>
+    <a class="nav-item" data-page="monitor"><span class="icon">&#9854;</span> Monitor</a>
     <a class="nav-item" data-page="work"><span class="icon">&#9744;</span> Work Queue</a>
     <a class="nav-item" data-page="learnings"><span class="icon">&#9998;</span> Learnings</a>
     <a class="nav-item" data-page="changelog"><span class="icon">&#8635;</span> Changelog</a>
@@ -404,6 +405,29 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
       <div class="card" id="changelog-list" style="max-height:600px;overflow-y:auto"></div>
     </div>
 
+    <!-- MONITOR PAGE -->
+    <div class="page" id="page-monitor">
+      <div class="topbar-actions" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="triggerFreshnessCheck()">Check Now</button>
+        <button class="btn" onclick="loadMonitor()">Refresh</button>
+      </div>
+      <div class="grid g4" id="monitor-health-cards"></div>
+      <div class="section-title">Data Source Freshness</div>
+      <div class="card">
+        <div class="table-wrap" id="monitor-sources-table"></div>
+      </div>
+      <div class="grid g2" style="margin-top:16px">
+        <div>
+          <div class="section-title">System Stats</div>
+          <div class="card" id="monitor-stats"></div>
+        </div>
+        <div>
+          <div class="section-title">Event Log <span class="count" id="event-log-count"></span></div>
+          <div class="card" id="monitor-event-log" style="max-height:500px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- SEARCH PAGE -->
     <div class="page" id="page-search">
       <div class="card" style="margin-bottom:16px">
@@ -451,6 +475,7 @@ function loadPageData(page) {
     work: loadWork,
     learnings: loadLearnings,
     changelog: loadChangelog,
+    monitor: loadMonitor,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -549,12 +574,15 @@ async function loadDashboard() {
 
   // System health
   const scan = overview.latest_scan;
+  const mon = overview.monitor || {};
+  const monStatus = (mon.sources_stale > 0 || mon.sources_error > 0) ? '<span style="color:var(--orange)">degraded</span>' : '<span style="color:var(--green)">healthy</span>';
   document.getElementById('system-health').innerHTML = `
     <div style="font-size:13px">
+      <div style="padding:4px 0">Status: ${monStatus}</div>
+      <div style="padding:4px 0">Sources: <span style="color:var(--green)">${mon.sources_healthy || 0} healthy</span>${mon.sources_stale ? `, <span style="color:var(--orange)">${mon.sources_stale} stale</span>` : ''}${mon.sources_error ? `, <span style="color:var(--red)">${mon.sources_error} error</span>` : ''}</div>
+      ${mon.open_alerts ? `<div style="padding:4px 0;color:var(--orange)">Alerts: ${mon.open_alerts} open</div>` : ''}
       <div style="padding:4px 0">Latest scan: ${scan ? scan.scan_date + '/' + scan.run_id : 'None'}</div>
-      <div style="padding:4px 0">Articles: ${scan?.articles_collected || 0}</div>
-      <div style="padding:4px 0">Threats: ${scan?.threats_found || 0}</div>
-      <div style="padding:4px 0">Reports: ${overview.intel?.reports || 0}</div>
+      <div style="padding:4px 0">Articles: ${scan?.articles_collected || 0} &middot; Reports: ${overview.intel?.reports || 0}</div>
     </div>
   `;
 
@@ -1074,6 +1102,65 @@ async function submitChange() {
     impact: document.getElementById('c-impact').value,
   })});
   hideModal(); loadChangelog();
+}
+
+// --- Monitor ---
+async function loadMonitor() {
+  const [health, sources, log] = await Promise.all([
+    api('/api/monitor/health'),
+    api('/api/monitor/sources'),
+    api('/api/monitor/log?limit=100'),
+  ]);
+
+  // Health cards
+  const s = health.sources || {};
+  const statusColor = health.status === 'healthy' ? 'var(--green)' : 'var(--orange)';
+  const uptimeMin = Math.round((health.uptime_seconds || 0) / 60);
+  const uptimeStr = uptimeMin >= 60 ? `${Math.floor(uptimeMin / 60)}h ${uptimeMin % 60}m` : `${uptimeMin}m`;
+  document.getElementById('monitor-health-cards').innerHTML = [
+    `<div class="card card-sm"><h3>System Status</h3><div class="value" style="color:${statusColor}">${health.status}</div><div class="sub">Uptime: ${uptimeStr}</div></div>`,
+    `<div class="card card-sm"><h3>Sources Healthy</h3><div class="value" style="color:var(--green)">${s.healthy || 0}</div><div class="sub">of ${s.total || 0} sources</div></div>`,
+    `<div class="card card-sm"><h3>Stale</h3><div class="value" style="color:var(--orange)">${s.stale || 0}</div></div>`,
+    `<div class="card card-sm"><h3>Disk Usage</h3><div class="value">${health.disk_usage?.mb || 0}</div><div class="sub">MB (${health.disk_usage?.files || 0} files)</div></div>`,
+  ].join('');
+
+  // Sources table
+  function sourceStatusTag(status) {
+    const colors = { healthy: 'green', stale: 'orange', error: 'red', unknown: 'gray' };
+    return `<span class="tag tag-${colors[status] || 'gray'}">${status}</span>`;
+  }
+  document.getElementById('monitor-sources-table').innerHTML = sources.length ?
+    `<table><thead><tr><th>Source</th><th>Status</th><th>Last Success</th><th>Age</th><th>Interval</th><th>Items</th><th>Last Error</th></tr></thead><tbody>${sources.map(s => {
+      const ageStr = s.age_hours !== null ? `${s.age_hours}h` : 'never';
+      const ageColor = s.age_hours === null ? 'var(--text3)' : s.age_hours > s.expected_interval_hours ? 'var(--red)' : 'var(--green)';
+      return `<tr><td><strong>${s.source_name}</strong></td><td>${sourceStatusTag(s.status)}</td><td style="font-size:11px">${s.last_success_at ? new Date(s.last_success_at).toLocaleString() : 'Never'}</td><td style="color:${ageColor}">${ageStr}</td><td>${s.expected_interval_hours}h</td><td>${s.items_collected}</td><td style="font-size:11px;color:var(--red);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.last_error || '—'}</td></tr>`;
+    }).join('')}</tbody></table>` : '<div class="empty">No data sources registered</div>';
+
+  // System stats
+  const rc = health.row_counts || {};
+  document.getElementById('monitor-stats').innerHTML = `
+    <div style="font-size:13px">
+      ${Object.entries(rc).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid var(--border)"><span>${k}</span><span style="color:var(--text2)">${v}</span></div>`).join('')}
+      ${health.last_qa_check?.metric ? `<div style="padding:8px 12px;margin-top:8px;font-size:12px;color:var(--text2)">Last QA: ${health.last_qa_check.metric} — ${statusTag(health.last_qa_check.status)}</div>` : ''}
+    </div>
+  `;
+
+  // Event log
+  document.getElementById('event-log-count').textContent = `(${log.length})`;
+  const typeColors = { heartbeat: 'green', collection: 'blue', error: 'red', alert: 'orange', freshness_check: 'purple', worker_start: 'blue', worker_complete: 'green', qa_check: 'purple' };
+  document.getElementById('monitor-event-log').innerHTML = log.length ? log.map(e =>
+    `<div class="list-item" style="padding:8px 12px"><div style="display:flex;justify-content:space-between;align-items:center"><span class="tag tag-${typeColors[e.event_type] || 'gray'}" style="font-size:10px">${e.event_type}</span><span style="font-size:10px;color:var(--text3)">${new Date(e.created_at).toLocaleString()}</span></div><div style="font-size:12px;margin-top:4px">${e.message}</div>${e.source ? `<div style="font-size:10px;color:var(--text3)">source: ${e.source}</div>` : ''}</div>`
+  ).join('') : '<div class="empty">No events logged yet</div>';
+}
+
+async function triggerFreshnessCheck() {
+  const r = await api('/api/monitor/check', { method: 'POST' });
+  if (r.stale_sources && r.stale_sources.length > 0) {
+    alert('Stale sources found: ' + r.stale_sources.join(', '));
+  } else {
+    alert('All sources healthy');
+  }
+  loadMonitor();
 }
 
 // --- Search ---
