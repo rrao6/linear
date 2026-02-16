@@ -195,6 +195,44 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 .btn-icon:hover { background: var(--bg3); color: var(--text); }
 .btn-done { color: var(--green); }
 .btn-done:hover { background: rgba(63,185,80,0.15); color: var(--green); }
+
+/* Universal filter bar */
+.filter-bar { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; position: sticky; top: 52px; z-index: 30; }
+.filter-bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filter-bar select, .filter-bar input[type=text], .filter-bar input[type=date] { width: auto; min-width: 120px; padding: 6px 10px; font-size: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); outline: none; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.filter-chips:empty { margin-top: 0; }
+.filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-size: 11px; background: rgba(88,166,255,0.15); color: var(--accent); cursor: default; }
+.filter-chip-remove { cursor: pointer; font-size: 13px; opacity: 0.7; }
+.filter-chip-remove:hover { opacity: 1; }
+.filter-result-count { font-size: 12px; color: var(--text3); margin-left: auto; white-space: nowrap; }
+.filter-sort { display: flex; align-items: center; gap: 4px; }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 16px; padding: 12px 0; }
+.pagination button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 12px; cursor: pointer; }
+.pagination button:hover:not(:disabled) { background: var(--bg4); color: var(--text); }
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+.pagination button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.pagination-info { font-size: 12px; color: var(--text3); margin: 0 8px; }
+
+/* View toggle */
+.view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.view-toggle button { padding: 5px 12px; font-size: 12px; background: var(--bg3); color: var(--text2); border: none; cursor: pointer; border-right: 1px solid var(--border); }
+.view-toggle button:last-child { border-right: none; }
+.view-toggle button.active { background: var(--accent); color: var(--bg); }
+
+/* Card grid for card view */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+
+/* Expandable card */
+.expand-card { cursor: pointer; transition: border-color 0.15s; }
+.expand-card:hover { border-color: var(--accent); }
+.expand-card-details { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+.expand-card.expanded .expand-card-details { display: block; }
+.expand-chevron { transition: transform 0.2s; display: inline-block; }
+.expand-card.expanded .expand-chevron { transform: rotate(90deg); }
 </style>
 </head>
 <body>
@@ -232,6 +270,7 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
     <a class="nav-item" data-page="learnings"><span class="icon">&#9998;</span> Learnings</a>
     <a class="nav-item" data-page="changelog"><span class="icon">&#8635;</span> Changelog</a>
     <a class="nav-item" data-page="search"><span class="icon">&#8981;</span> Search</a>
+    <a class="nav-item" data-page="explore"><span class="icon">&#9776;</span> Explore</a>
   </nav>
   <div class="sidebar-footer">
     <div>Hub v1.0 &middot; <span id="health-indicator">...</span></div>
@@ -623,6 +662,125 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
       <div class="grid g2" id="insights-cards"></div>
       <div class="section-title" style="margin-top:16px">Insight History</div>
       <div class="card" id="insights-history"></div>
+    </div>
+
+    <!-- EXPLORE PAGE — Universal Filtering -->
+    <div class="page" id="page-explore">
+      <!-- Unified search -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:8px">
+          <input type="text" id="explore-search" placeholder="Search across all hub data..." onkeydown="if(event.key==='Enter')runExploreSearch()">
+          <button class="btn btn-primary" onclick="runExploreSearch()">Search All</button>
+        </div>
+      </div>
+      <div id="explore-unified-results" style="display:none;margin-bottom:24px"></div>
+
+      <!-- Data type tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
+        <button class="btn btn-sm explore-tab active" data-tab="sentiment" onclick="switchExploreTab('sentiment')">Sentiment</button>
+        <button class="btn btn-sm explore-tab" data-tab="learnings" onclick="switchExploreTab('learnings')">Learnings</button>
+        <button class="btn btn-sm explore-tab" data-tab="work" onclick="switchExploreTab('work')">Work Items</button>
+      </div>
+
+      <!-- Sentiment filter panel -->
+      <div class="explore-panel active" id="explore-sentiment">
+        <div class="filter-bar">
+          <div class="filter-bar-row">
+            <select id="ef-source" onchange="applyExploreFilters('sentiment')"><option value="">All Sources</option></select>
+            <select id="ef-sentiment" onchange="applyExploreFilters('sentiment')"><option value="">All Sentiments</option></select>
+            <select id="ef-topic" onchange="applyExploreFilters('sentiment')"><option value="">All Topics</option></select>
+            <input type="date" id="ef-date-from" onchange="applyExploreFilters('sentiment')" style="width:140px" placeholder="From">
+            <input type="date" id="ef-date-to" onchange="applyExploreFilters('sentiment')" style="width:140px" placeholder="To">
+            <div class="filter-sort">
+              <select id="ef-sort" onchange="applyExploreFilters('sentiment')" style="min-width:100px">
+                <option value="date">Sort: Date</option>
+                <option value="score">Sort: Score</option>
+              </select>
+              <select id="ef-order" onchange="applyExploreFilters('sentiment')" style="min-width:80px">
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+            <div class="view-toggle">
+              <button class="active" onclick="setExploreView('sentiment','table',this)">Table</button>
+              <button onclick="setExploreView('sentiment','card',this)">Cards</button>
+            </div>
+            <span class="filter-result-count" id="ef-count"></span>
+          </div>
+          <div class="filter-chips" id="ef-chips"></div>
+        </div>
+        <div id="explore-sentiment-results"></div>
+        <div id="explore-sentiment-pagination"></div>
+      </div>
+
+      <!-- Learnings filter panel -->
+      <div class="explore-panel" id="explore-learnings" style="display:none">
+        <div class="filter-bar">
+          <div class="filter-bar-row">
+            <select id="el-category" onchange="applyExploreFilters('learnings')"><option value="">All Categories</option></select>
+            <input type="text" id="el-search" placeholder="Search learnings..." oninput="applyExploreFilters('learnings')" style="width:200px">
+            <input type="date" id="el-date-from" onchange="applyExploreFilters('learnings')" style="width:140px">
+            <input type="date" id="el-date-to" onchange="applyExploreFilters('learnings')" style="width:140px">
+            <div class="filter-sort">
+              <select id="el-sort" onchange="applyExploreFilters('learnings')" style="min-width:100px">
+                <option value="date">Sort: Date</option>
+                <option value="category">Sort: Category</option>
+                <option value="title">Sort: Title</option>
+              </select>
+              <select id="el-order" onchange="applyExploreFilters('learnings')" style="min-width:80px">
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+            <select id="el-group" onchange="applyExploreFilters('learnings')" style="min-width:110px">
+              <option value="">No Grouping</option>
+              <option value="category" selected>Group: Category</option>
+            </select>
+            <div class="view-toggle">
+              <button class="active" onclick="setExploreView('learnings','table',this)">Table</button>
+              <button onclick="setExploreView('learnings','card',this)">Cards</button>
+            </div>
+            <span class="filter-result-count" id="el-count"></span>
+          </div>
+          <div class="filter-chips" id="el-chips"></div>
+        </div>
+        <div id="explore-learnings-results"></div>
+        <div id="explore-learnings-pagination"></div>
+      </div>
+
+      <!-- Work filter panel -->
+      <div class="explore-panel" id="explore-work" style="display:none">
+        <div class="filter-bar">
+          <div class="filter-bar-row">
+            <select id="ew-type" onchange="applyExploreFilters('work')"><option value="">All Types</option></select>
+            <select id="ew-status" onchange="applyExploreFilters('work')"><option value="">All Status</option></select>
+            <select id="ew-priority" onchange="applyExploreFilters('work')"><option value="">All Priorities</option></select>
+            <select id="ew-owner" onchange="applyExploreFilters('work')"><option value="">All Owners</option></select>
+            <input type="date" id="ew-date-from" onchange="applyExploreFilters('work')" style="width:140px">
+            <input type="date" id="ew-date-to" onchange="applyExploreFilters('work')" style="width:140px">
+            <div class="filter-sort">
+              <select id="ew-sort" onchange="applyExploreFilters('work')" style="min-width:100px">
+                <option value="priority">Sort: Priority</option>
+                <option value="date">Sort: Date</option>
+                <option value="type">Sort: Type</option>
+              </select>
+              <select id="ew-order" onchange="applyExploreFilters('work')" style="min-width:80px">
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+            <div class="view-toggle">
+              <button class="active" onclick="setExploreView('work','table',this)">Table</button>
+              <button onclick="setExploreView('work','card',this)">Cards</button>
+            </div>
+            <span class="filter-result-count" id="ew-count"></span>
+          </div>
+          <div class="filter-chips" id="ew-chips"></div>
+        </div>
+        <div class="grid g3" id="ew-facets" style="margin-top:12px"></div>
+        <div id="explore-work-results"></div>
+        <div id="explore-work-pagination"></div>
+      </div>
     </div>
 
   </div>
@@ -2462,6 +2620,446 @@ async function checkHealth() {
     document.getElementById('health-indicator').innerHTML = '<span style="color:var(--red)">Offline</span>';
   }
 }
+
+// --- Explore (Universal Filtering) ---
+let _exploreViews = { sentiment: 'table', learnings: 'table', work: 'table' };
+let _explorePage = { sentiment: 1, learnings: 1, work: 1 };
+let _taxonomyCache = null;
+
+async function loadExplorePage() {
+  if (!_taxonomyCache) {
+    try {
+      _taxonomyCache = await api('/api/filter/taxonomy');
+      populateExploreDropdowns(_taxonomyCache);
+    } catch (err) {
+      return;
+    }
+  }
+  // Restore from URL params
+  restoreExploreFromURL();
+  const activeTab = document.querySelector('.explore-tab.active')?.dataset.tab || 'sentiment';
+  applyExploreFilters(activeTab);
+}
+
+function populateExploreDropdowns(tax) {
+  function fillSelect(id, values, prefix) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const current = el.value;
+    el.innerHTML = `<option value="">${prefix}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
+    if (current) el.value = current;
+  }
+  fillSelect('ef-source', tax.sources || [], 'All Sources');
+  fillSelect('ef-sentiment', tax.sentiments || [], 'All Sentiments');
+  fillSelect('ef-topic', tax.topics || [], 'All Topics');
+  fillSelect('el-category', tax.categories || [], 'All Categories');
+  fillSelect('ew-type', tax.work_types || [], 'All Types');
+  fillSelect('ew-status', tax.work_statuses || [], 'All Status');
+  fillSelect('ew-priority', tax.priorities || [], 'All Priorities');
+  fillSelect('ew-owner', tax.owners || [], 'All Owners');
+}
+
+function switchExploreTab(tab) {
+  document.querySelectorAll('.explore-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.explore-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('explore-' + tab);
+  if (panel) panel.style.display = 'block';
+  applyExploreFilters(tab);
+  updateExploreURL();
+}
+
+function setExploreView(tab, view, btn) {
+  _exploreViews[tab] = view;
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyExploreFilters(tab);
+}
+
+async function applyExploreFilters(tab) {
+  _explorePage[tab] = _explorePage[tab] || 1;
+  updateExploreURL();
+
+  if (tab === 'sentiment') await loadExploreSentiment();
+  else if (tab === 'learnings') await loadExploreLearnings();
+  else if (tab === 'work') await loadExploreWork();
+}
+
+function buildExploreChips(containerId, filters) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = filters
+    .filter(f => f.value)
+    .map(f => `<span class="filter-chip">${f.label}: ${f.value} <span class="filter-chip-remove" onclick="clearExploreFilter('${f.inputId}')">&times;</span></span>`)
+    .join('');
+}
+
+function clearExploreFilter(inputId) {
+  const el = document.getElementById(inputId);
+  if (el) { el.value = ''; el.dispatchEvent(new Event('change')); }
+}
+
+function renderPagination(containerId, page, totalPages, total, onPage) {
+  const el = document.getElementById(containerId);
+  if (!el || totalPages <= 1) { if (el) el.innerHTML = ''; return; }
+  let html = '<div class="pagination">';
+  html += `<button ${page <= 1 ? 'disabled' : ''} onclick="${onPage}(${page - 1})">&laquo;</button>`;
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, page + 2);
+  if (start > 1) html += `<button onclick="${onPage}(1)">1</button>`;
+  if (start > 2) html += '<span class="pagination-info">...</span>';
+  for (let i = start; i <= end; i++) {
+    html += `<button class="${i === page ? 'active' : ''}" onclick="${onPage}(${i})">${i}</button>`;
+  }
+  if (end < totalPages - 1) html += '<span class="pagination-info">...</span>';
+  if (end < totalPages) html += `<button onclick="${onPage}(${totalPages})">${totalPages}</button>`;
+  html += `<button ${page >= totalPages ? 'disabled' : ''} onclick="${onPage}(${page + 1})">&raquo;</button>`;
+  html += `<span class="pagination-info">${total} results</span>`;
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// Sentiment
+async function loadExploreSentiment() {
+  const params = new URLSearchParams();
+  const source = document.getElementById('ef-source')?.value;
+  const sentiment = document.getElementById('ef-sentiment')?.value;
+  const topic = document.getElementById('ef-topic')?.value;
+  const dateFrom = document.getElementById('ef-date-from')?.value;
+  const dateTo = document.getElementById('ef-date-to')?.value;
+  const sortBy = document.getElementById('ef-sort')?.value || 'date';
+  const order = document.getElementById('ef-order')?.value || 'desc';
+  if (source) params.set('source', source);
+  if (sentiment) params.set('sentiment', sentiment);
+  if (topic) params.set('topic', topic);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  params.set('sort_by', sortBy);
+  params.set('order', order);
+  params.set('page', _explorePage.sentiment);
+  params.set('per_page', 25);
+
+  buildExploreChips('ef-chips', [
+    { label: 'Source', value: source, inputId: 'ef-source' },
+    { label: 'Sentiment', value: sentiment, inputId: 'ef-sentiment' },
+    { label: 'Topic', value: topic, inputId: 'ef-topic' },
+    { label: 'From', value: dateFrom, inputId: 'ef-date-from' },
+    { label: 'To', value: dateTo, inputId: 'ef-date-to' },
+  ]);
+
+  try {
+    const data = await api('/api/filter/sentiment?' + params);
+    document.getElementById('ef-count').textContent = `${data.total} results`;
+
+    const items = data.items || [];
+    const view = _exploreViews.sentiment;
+    const container = document.getElementById('explore-sentiment-results');
+
+    if (!items.length) {
+      container.innerHTML = emptyState('&#9829;', 'No matching feedback', 'Adjust filters or add more feedback');
+    } else if (view === 'card') {
+      container.innerHTML = '<div class="card-grid">' + items.map(f => `
+        <div class="card expand-card" onclick="this.classList.toggle('expanded')">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span>
+            <span style="font-size:11px;color:var(--text3)">${f.source} &middot; ${f.sentiment_score}</span>
+          </div>
+          <div style="font-size:13px;margin-top:8px">${escapeHtml((f.text || '').substring(0, 150))}${(f.text || '').length > 150 ? '...' : ''}</div>
+          <div style="margin-top:6px">${(f.topics || []).map(t => '<span class="tag tag-gray" style="margin-right:4px">' + escapeHtml(t) + '</span>').join('')}</div>
+          <div class="expand-card-details">
+            <div style="margin-bottom:6px">${escapeHtml(f.text || '')}</div>
+            ${f.author ? '<div>Author: ' + escapeHtml(f.author) + '</div>' : ''}
+            ${f.url ? '<div>URL: <a href="' + escapeHtml(f.url) + '" target="_blank" style="color:var(--accent)">' + escapeHtml(f.url) + '</a></div>' : ''}
+            <div>Collected: ${f.collected_at || ''}</div>
+            ${f.product_areas_json && Array.isArray(f.product_areas_json) ? '<div>Areas: ' + f.product_areas_json.join(', ') + '</div>' : ''}
+          </div>
+        </div>
+      `).join('') + '</div>';
+    } else {
+      container.innerHTML = `<div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Sentiment</th><th>Score</th><th>Text</th><th>Source</th><th>Topics</th><th>Date</th></tr></thead>
+        <tbody>${items.map(f => `<tr class="expand-card" onclick="this.classList.toggle('expanded')" style="cursor:pointer">
+          <td><span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span></td>
+          <td>${f.sentiment_score}</td>
+          <td style="max-width:400px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml((f.text || '').substring(0, 120))}</div><div class="expand-card-details">${escapeHtml(f.text || '')}</div></td>
+          <td>${f.source}</td>
+          <td>${(f.topics || []).map(t => '<span class="tag tag-gray" style="margin:1px">' + escapeHtml(t) + '</span>').join('')}</td>
+          <td style="font-size:11px;white-space:nowrap">${f.collected_at ? new Date(f.collected_at).toLocaleDateString() : ''}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div>`;
+    }
+    renderPagination('explore-sentiment-pagination', data.page, data.total_pages, data.total, 'goExploreSentimentPage');
+  } catch (err) {}
+}
+function goExploreSentimentPage(p) { _explorePage.sentiment = p; loadExploreSentiment(); }
+
+// Learnings
+async function loadExploreLearnings() {
+  const params = new URLSearchParams();
+  const category = document.getElementById('el-category')?.value;
+  const search = document.getElementById('el-search')?.value;
+  const dateFrom = document.getElementById('el-date-from')?.value;
+  const dateTo = document.getElementById('el-date-to')?.value;
+  const sortBy = document.getElementById('el-sort')?.value || 'date';
+  const order = document.getElementById('el-order')?.value || 'desc';
+  const groupBy = document.getElementById('el-group')?.value || '';
+  if (category) params.set('category', category);
+  if (search) params.set('search', search);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  params.set('sort_by', sortBy);
+  params.set('order', order);
+  params.set('page', _explorePage.learnings);
+  params.set('per_page', 25);
+
+  buildExploreChips('el-chips', [
+    { label: 'Category', value: category, inputId: 'el-category' },
+    { label: 'Search', value: search, inputId: 'el-search' },
+    { label: 'From', value: dateFrom, inputId: 'el-date-from' },
+    { label: 'To', value: dateTo, inputId: 'el-date-to' },
+  ]);
+
+  try {
+    const data = await api('/api/filter/learnings?' + params);
+    document.getElementById('el-count').textContent = `${data.total} results`;
+
+    const items = data.items || [];
+    const catCounts = data.category_counts || {};
+    const view = _exploreViews.learnings;
+    const container = document.getElementById('explore-learnings-results');
+
+    if (!items.length) {
+      container.innerHTML = emptyState('&#9998;', 'No matching learnings', 'Adjust filters or add more learnings');
+    } else if (groupBy === 'category') {
+      const groups = {};
+      items.forEach(l => { const c = l.category || 'unknown'; if (!groups[c]) groups[c] = []; groups[c].push(l); });
+      let html = '';
+      for (const [cat, learnings] of Object.entries(groups)) {
+        const color = categoryColors[cat] || 'gray';
+        const label = categoryLabels[cat] || cat;
+        html += `<div style="margin-bottom:20px"><div class="section-title"><span class="tag tag-${color}">${label}</span> <span class="count">(${catCounts[cat] || learnings.length})</span></div>`;
+        if (view === 'card') {
+          html += '<div class="card-grid">' + learnings.map(l => renderLearningCard(l)).join('') + '</div>';
+        } else {
+          html += renderLearningsTable(learnings);
+        }
+        html += '</div>';
+      }
+      container.innerHTML = html;
+    } else if (view === 'card') {
+      container.innerHTML = '<div class="card-grid">' + items.map(l => renderLearningCard(l)).join('') + '</div>';
+    } else {
+      container.innerHTML = renderLearningsTable(items);
+    }
+    renderPagination('explore-learnings-pagination', data.page, data.total_pages, data.total, 'goExploreLearningsPage');
+  } catch (err) {}
+}
+function goExploreLearningsPage(p) { _explorePage.learnings = p; loadExploreLearnings(); }
+
+function renderLearningCard(l) {
+  const tags = Array.isArray(l.tags) ? l.tags : [];
+  const color = categoryColors[l.category] || 'gray';
+  return `<div class="card expand-card card-sm" onclick="this.classList.toggle('expanded')">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+      <div style="font-weight:500;font-size:13px">${escapeHtml(l.title)}</div>
+      <span class="tag tag-${color}">${l.category}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text2)">${escapeHtml((l.description || '').substring(0, 150))}</div>
+    <div style="margin-top:6px">${tags.map(t => '<span class="tag tag-gray" style="margin-right:4px;font-size:10px">' + escapeHtml(t) + '</span>').join('')}</div>
+    <div class="expand-card-details">
+      <div style="margin-bottom:6px">${escapeHtml(l.description || '')}</div>
+      ${l.source ? '<div>Source: ' + escapeHtml(l.source) + '</div>' : ''}
+      <div>Created: ${l.created_at || ''}</div>
+      ${l.verified ? '<div style="color:var(--green)">Verified</div>' : ''}
+    </div>
+  </div>`;
+}
+
+function renderLearningsTable(items) {
+  return `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Category</th><th>Title</th><th>Description</th><th>Tags</th><th>Verified</th><th>Date</th></tr></thead>
+    <tbody>${items.map(l => {
+      const tags = Array.isArray(l.tags) ? l.tags : [];
+      const color = categoryColors[l.category] || 'gray';
+      return `<tr class="expand-card" onclick="this.classList.toggle('expanded')" style="cursor:pointer">
+        <td><span class="tag tag-${color}">${l.category}</span></td>
+        <td><strong>${escapeHtml(l.title)}</strong></td>
+        <td style="max-width:300px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml((l.description || '').substring(0, 100))}</div><div class="expand-card-details">${escapeHtml(l.description || '')}</div></td>
+        <td>${tags.map(t => '<span class="tag tag-gray" style="margin:1px">' + escapeHtml(t) + '</span>').join('')}</td>
+        <td>${l.verified ? '<span style="color:var(--green)">&#10003;</span>' : ''}</td>
+        <td style="font-size:11px;white-space:nowrap">${l.created_at ? new Date(l.created_at).toLocaleDateString() : ''}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div></div>`;
+}
+
+// Work
+async function loadExploreWork() {
+  const params = new URLSearchParams();
+  const type = document.getElementById('ew-type')?.value;
+  const status = document.getElementById('ew-status')?.value;
+  const priority = document.getElementById('ew-priority')?.value;
+  const owner = document.getElementById('ew-owner')?.value;
+  const dateFrom = document.getElementById('ew-date-from')?.value;
+  const dateTo = document.getElementById('ew-date-to')?.value;
+  const sortBy = document.getElementById('ew-sort')?.value || 'priority';
+  const order = document.getElementById('ew-order')?.value || 'desc';
+  if (type) params.set('type', type);
+  if (status) params.set('status', status);
+  if (priority) params.set('priority', priority);
+  if (owner) params.set('owner', owner);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  params.set('sort_by', sortBy);
+  params.set('order', order);
+  params.set('page', _explorePage.work);
+  params.set('per_page', 25);
+
+  buildExploreChips('ew-chips', [
+    { label: 'Type', value: type, inputId: 'ew-type' },
+    { label: 'Status', value: status, inputId: 'ew-status' },
+    { label: 'Priority', value: priority, inputId: 'ew-priority' },
+    { label: 'Owner', value: owner, inputId: 'ew-owner' },
+    { label: 'From', value: dateFrom, inputId: 'ew-date-from' },
+    { label: 'To', value: dateTo, inputId: 'ew-date-to' },
+  ]);
+
+  try {
+    const data = await api('/api/filter/work?' + params);
+    document.getElementById('ew-count').textContent = `${data.total} results`;
+
+    const facets = data.facets || {};
+    document.getElementById('ew-facets').innerHTML = [
+      facets.by_type ? `<div class="card card-sm"><h3>By Type</h3>${Object.entries(facets.by_type).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px"><span>${k}</span><span class="tag tag-gray">${v}</span></div>`).join('')}</div>` : '',
+      facets.by_status ? `<div class="card card-sm"><h3>By Status</h3>${Object.entries(facets.by_status).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px"><span>${k}</span>${statusTag(k)} <span class="tag tag-gray">${v}</span></div>`).join('')}</div>` : '',
+      facets.by_priority ? `<div class="card card-sm"><h3>By Priority</h3>${Object.entries(facets.by_priority).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px"><span>${k}</span>${priorityTag(k)} <span class="tag tag-gray">${v}</span></div>`).join('')}</div>` : '',
+    ].join('');
+
+    const items = data.items || [];
+    const view = _exploreViews.work;
+    const container = document.getElementById('explore-work-results');
+
+    if (!items.length) {
+      container.innerHTML = emptyState('&#9744;', 'No matching work items', 'Adjust filters or add more work items');
+    } else if (view === 'card') {
+      container.innerHTML = '<div class="card-grid">' + items.map(w => {
+        const tags = Array.isArray(w.tags) ? w.tags : [];
+        return `<div class="card expand-card" onclick="this.classList.toggle('expanded')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            ${typeTag(w.type)} ${priorityTag(w.priority)}
+          </div>
+          <div style="font-weight:600;margin-bottom:4px">${escapeHtml(w.title)}</div>
+          <div style="display:flex;gap:6px;align-items:center">${statusTag(w.status)}${w.owner ? `<span style="font-size:11px;color:var(--text3)">${escapeHtml(w.owner)}</span>` : ''}</div>
+          <div style="margin-top:6px">${tags.map(t => '<span class="tag tag-gray" style="margin-right:4px">' + escapeHtml(t) + '</span>').join('')}</div>
+          <div class="expand-card-details">
+            <div style="margin-bottom:6px">${escapeHtml(w.description || 'No description')}</div>
+            <div>Created: ${w.created_at || ''}</div>
+            ${w.completed_at ? '<div>Completed: ' + w.completed_at + '</div>' : ''}
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+    } else {
+      container.innerHTML = `<div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Type</th><th>Title</th><th>Priority</th><th>Status</th><th>Owner</th><th>Tags</th><th>Date</th></tr></thead>
+        <tbody>${items.map(w => {
+          const tags = Array.isArray(w.tags) ? w.tags : [];
+          return `<tr class="expand-card" onclick="this.classList.toggle('expanded')" style="cursor:pointer">
+            <td>${typeTag(w.type)}</td>
+            <td style="max-width:300px"><strong>${escapeHtml(w.title)}</strong><div class="expand-card-details">${escapeHtml(w.description || '')}</div></td>
+            <td>${priorityTag(w.priority)}</td>
+            <td>${statusTag(w.status)}</td>
+            <td style="font-size:12px">${escapeHtml(w.owner || '')}</td>
+            <td>${tags.map(t => '<span class="tag tag-gray" style="margin:1px">' + escapeHtml(t) + '</span>').join('')}</td>
+            <td style="font-size:11px;white-space:nowrap">${w.created_at ? new Date(w.created_at).toLocaleDateString() : ''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+    }
+    renderPagination('explore-work-pagination', data.page, data.total_pages, data.total, 'goExploreWorkPage');
+  } catch (err) {}
+}
+function goExploreWorkPage(p) { _explorePage.work = p; loadExploreWork(); }
+
+// Unified search
+async function runExploreSearch() {
+  const q = document.getElementById('explore-search')?.value?.trim();
+  if (!q) { document.getElementById('explore-unified-results').style.display = 'none'; return; }
+
+  const container = document.getElementById('explore-unified-results');
+  container.style.display = 'block';
+  container.innerHTML = '<div class="loading-overlay"><span class="spinner spinner-lg"></span> Searching...</div>';
+
+  try {
+    const data = await api('/api/filter/all?q=' + encodeURIComponent(q));
+    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--text2)"><strong>${data.total_matches || 0}</strong> matches across all data</div>`;
+
+    const sections = [
+      { key: 'sentiment', label: 'Feedback', icon: '&#9829;', color: 'pink' },
+      { key: 'learnings', label: 'Learnings', icon: '&#9998;', color: 'blue' },
+      { key: 'work_items', label: 'Work Items', icon: '&#9744;', color: 'green' },
+      { key: 'experiments', label: 'Experiments', icon: '&#9733;', color: 'orange' },
+    ];
+
+    for (const sec of sections) {
+      const items = data[sec.key] || [];
+      if (!items.length) continue;
+      html += `<div class="card" style="margin-bottom:12px"><div class="section-title">${sec.icon} ${sec.label} <span class="count">(${items.length})</span></div>`;
+      html += items.slice(0, 5).map(item => {
+        const title = item.title || item.name || (item.text || '').substring(0, 80);
+        const score = item.relevance ? `<span class="tag tag-blue">${Math.round(item.relevance * 100)}%</span>` : '';
+        return `<div class="list-item"><div style="display:flex;justify-content:space-between;align-items:center"><div class="list-item-title">${escapeHtml(title)}</div>${score}</div></div>`;
+      }).join('');
+      html += '</div>';
+    }
+
+    if (!data.total_matches) {
+      html = emptyState('&#8981;', 'No results found', `No matches for "${escapeHtml(q)}"`);
+    }
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = emptyState('&#9888;', 'Search failed', 'Check server connection');
+  }
+}
+
+// URL state persistence
+function updateExploreURL() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = document.querySelector('.explore-tab.active')?.dataset.tab || 'sentiment';
+  params.set('tab', tab);
+
+  // Persist filter values
+  const filterIds = {
+    sentiment: ['ef-source','ef-sentiment','ef-topic','ef-date-from','ef-date-to','ef-sort','ef-order'],
+    learnings: ['el-category','el-search','el-date-from','el-date-to','el-sort','el-order','el-group'],
+    work: ['ew-type','ew-status','ew-priority','ew-owner','ew-date-from','ew-date-to','ew-sort','ew-order'],
+  };
+  for (const id of (filterIds[tab] || [])) {
+    const el = document.getElementById(id);
+    if (el && el.value) params.set(id, el.value);
+    else params.delete(id);
+  }
+
+  const newUrl = window.location.pathname + '?' + params.toString();
+  window.history.replaceState({}, '', newUrl);
+}
+
+function restoreExploreFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab');
+  if (tab) switchExploreTab(tab);
+
+  for (const [key, val] of params.entries()) {
+    if (key === 'tab') continue;
+    const el = document.getElementById(key);
+    if (el) el.value = val;
+  }
+}
+
+// Register explore in page loader
+const _origLoadPageData = loadPageData;
+loadPageData = function(page) {
+  if (page === 'explore') { loadExplorePage(); return; }
+  _origLoadPageData(page);
+};
 
 // --- Init ---
 updateDateRangeVisibility('dashboard');
