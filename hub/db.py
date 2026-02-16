@@ -141,6 +141,18 @@ CREATE TABLE IF NOT EXISTS kpi_cache (
     value TEXT NOT NULL,           -- JSON-encoded result
     fetched_at TEXT NOT NULL       -- ISO timestamp of when data was fetched
 );
+
+-- QA accuracy checks: continuous data verification
+CREATE TABLE IF NOT EXISTS qa_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_name TEXT NOT NULL,
+    expected_value TEXT DEFAULT '',
+    actual_value TEXT DEFAULT '',
+    match BOOLEAN DEFAULT 0,
+    drift_pct REAL DEFAULT 0.0,
+    error TEXT DEFAULT '',
+    checked_at TEXT NOT NULL
+);
 """
 
 
