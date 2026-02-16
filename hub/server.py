@@ -36,7 +36,7 @@ for _name in _ROUTER_NAMES:
     try:
         _mod = __import__(f"hub.routers.{_name}", fromlist=["router"])
         _routers[_name] = _mod.router
-    except (ImportError, AttributeError) as e:
+    except Exception as e:
         logger.warning("Router %r unavailable, skipping: %s", _name, e)
 
 
