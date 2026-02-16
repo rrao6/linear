@@ -210,10 +210,10 @@ def ask(req: AskRequest):
     # Step 5: Log to history
     db.log_ask(
         question=question,
-        sql_text=sql,
+        sql=sql,
         results=rows_data,
         summary=summary,
-        row_count=len(rows_data),
+        rows=len(rows_data),
         elapsed_sec=round(elapsed, 2),
     )
 
