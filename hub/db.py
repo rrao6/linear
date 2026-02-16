@@ -504,6 +504,20 @@ def get_experiments(status: str = None, limit: int = 100) -> list:
         return [dict(r) for r in conn.execute(query, params).fetchall()]
 
 
+def deduplicate_experiments() -> int:
+    """Remove duplicate experiments by name, keeping the one with lowest rowid."""
+    with get_db() as conn:
+        dupes = conn.execute(
+            """SELECT COUNT(*) - COUNT(DISTINCT name) AS dupe_count FROM experiments"""
+        ).fetchone()[0]
+        if dupes > 0:
+            conn.execute(
+                """DELETE FROM experiments WHERE rowid NOT IN
+                   (SELECT MIN(rowid) FROM experiments GROUP BY name)"""
+            )
+        return dupes
+
+
 def update_experiment(id: int, **kwargs) -> bool:
     allowed = {"name", "phase", "hypothesis", "status", "start_date", "end_date",
                "platforms", "metrics", "statsig_id", "notes"}
@@ -565,6 +579,25 @@ def create_gracenote_mapping(tubi_content_id: str, gracenote_id: str = "",
              match_status, notes, now_iso(), now_iso())
         )
         return cur.lastrowid
+
+
+def update_gracenote_mapping(id: int, **kwargs) -> bool:
+    allowed = {"gracenote_id", "content_name", "content_type", "match_status", "notes"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return False
+    updates["updated_at"] = now_iso()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    with get_db() as conn:
+        conn.execute(f"UPDATE gracenote_mappings SET {set_clause} WHERE id = ?",
+                     list(updates.values()) + [id])
+    return True
+
+
+def delete_gracenote_mapping(id: int) -> bool:
+    with get_db() as conn:
+        conn.execute("DELETE FROM gracenote_mappings WHERE id = ?", (id,))
+    return True
 
 
 def get_gracenote_mappings(status: str = None, limit: int = 100) -> list:

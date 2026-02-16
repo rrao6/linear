@@ -36,13 +36,22 @@ class ExperimentUpdate(BaseModel):
 
 @router.get("/experiments")
 def list_experiments(status: Optional[str] = None, limit: int = 100):
-    """List experiments with optional status filter."""
+    """List experiments with optional status filter. Auto-deduplicates on first call."""
+    # Auto-deduplicate if needed
+    removed = db.deduplicate_experiments()
     exps = db.get_experiments(status=status, limit=limit)
     for exp in exps:
         for field in ("platforms", "metrics"):
             if isinstance(exp.get(field), str):
                 exp[field] = json.loads(exp[field])
     return exps
+
+
+@router.post("/deduplicate")
+def deduplicate_experiments():
+    """Manually trigger experiment deduplication."""
+    removed = db.deduplicate_experiments()
+    return {"removed": removed}
 
 
 @router.post("/experiments")
