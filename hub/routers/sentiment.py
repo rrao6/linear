@@ -28,6 +28,26 @@ class FeedbackBatch(BaseModel):
     items: List[FeedbackCreate]
 
 
+class SproutMessage(BaseModel):
+    """A single message from Sprout Social's listening/inbox API."""
+    network: str = ""        # twitter, facebook, instagram, etc.
+    text: str = ""
+    sentiment: str = "neutral"  # positive, negative, neutral
+    author: str = ""
+    url: str = ""
+    profile_name: str = ""
+    created_time: str = ""
+    tags: List[str] = []
+    metrics: dict = {}       # likes, shares, impressions, etc.
+
+
+class SproutCollectPayload(BaseModel):
+    """Payload from Sprout Social webhook or manual collection."""
+    messages: List[SproutMessage]
+    topic: str = ""          # listening topic / query name
+    date_range: str = ""     # e.g. "2026-02-01 to 2026-02-15"
+
+
 @router.get("/summary")
 def sentiment_summary():
     """Get overall sentiment summary."""
@@ -71,6 +91,39 @@ def add_feedback_batch(batch: FeedbackBatch):
         )
         ids.append(id)
     return {"ids": ids, "count": len(ids)}
+
+
+@router.post("/collect/sprout")
+def collect_sprout(payload: SproutCollectPayload):
+    """Ingest social listening data from Sprout Social.
+
+    Converts Sprout messages into feedback items, mapping network names
+    to the source field and preserving Sprout-specific metrics in metadata.
+    """
+    _sentiment_map = {"positive": 0.5, "negative": -0.5, "neutral": 0.0}
+    ids = []
+    for msg in payload.messages:
+        score = _sentiment_map.get(msg.sentiment, 0.0)
+        meta = {
+            "sprout_network": msg.network,
+            "sprout_topic": payload.topic,
+            "sprout_date_range": payload.date_range,
+            "sprout_profile": msg.profile_name,
+            "sprout_created_time": msg.created_time,
+            "sprout_metrics": msg.metrics,
+        }
+        fb_id = db.create_feedback(
+            source=f"sprout:{msg.network}" if msg.network else "sprout",
+            text=msg.text,
+            sentiment=msg.sentiment,
+            sentiment_score=score,
+            topics=msg.tags,
+            author=msg.author,
+            url=msg.url,
+            metadata=meta,
+        )
+        ids.append(fb_id)
+    return {"ids": ids, "count": len(ids), "topic": payload.topic}
 
 
 @router.get("/topics")
