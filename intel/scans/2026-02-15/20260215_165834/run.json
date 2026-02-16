@@ -1,0 +1,12 @@
+{
+  "run_id": "20260215_165834",
+  "started_at": "2026-02-15T16:58:34.426379",
+  "finished_at": "2026-02-15T16:58:53.420110",
+  "status": "completed",
+  "articles_collected": 139,
+  "articles_classified": 0,
+  "threats_found": 0,
+  "opportunities_found": 0,
+  "trends_identified": 0,
+  "report_path": ""
+}
