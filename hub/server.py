@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _ROUTER_NAMES = [
     "dashboard", "intel", "data", "sentiment", "features", "oem",
     "strategy", "search", "qa", "monitor", "knowledge",
-    "insights", "ask", "problems",
+    "insights", "ask", "problems", "filters",
 ]
 _routers = {}
 for _name in _ROUTER_NAMES:
