@@ -63,32 +63,42 @@ def collect_apple_reviews(limit=50):
 
             full_text = f"{title}\n{content}"
 
-            # Use rating for quick sentiment
-            if rating >= 4:
-                sentiment_label = "positive"
-                score = (rating - 3) / 2.0
-            elif rating <= 2:
-                sentiment_label = "negative"
-                score = -(3 - rating) / 2.0
-            else:
-                sentiment_label = "neutral"
-                score = 0.0
+            # Always classify with AI for proper sentiment + topic extraction
+            classified = classify_sentiment(full_text)
+            sentiment_label = classified.get("sentiment", "neutral")
+            score = classified.get("score", 0.0)
+            topics = classified.get("topics", [])
 
-            # Get detailed classification if text mentions linear/epg
-            text_lower = full_text.lower()
-            topics = []
-            if any(w in text_lower for w in ["linear", "live", "epg", "channel", "guide"]):
-                classified = classify_sentiment(full_text)
-                topics = classified.get("topics", [])
-            if not topics:
-                if "ad" in text_lower:
-                    topics.append("ads")
-                if "buffer" in text_lower or "load" in text_lower:
-                    topics.append("buffering")
+            # Fallback: use rating if classification returned neutral and rating is strong
+            if sentiment_label == "neutral" and rating >= 4:
+                sentiment_label = "positive"
+                score = max(score, (rating - 3) / 2.0)
+            elif sentiment_label == "neutral" and rating <= 2:
+                sentiment_label = "negative"
+                score = min(score, -(3 - rating) / 2.0)
+
+            if not topics or topics == ["general"]:
+                text_lower = full_text.lower()
+                extracted = []
+                if "ad" in text_lower or "commercial" in text_lower:
+                    extracted.append("ads")
+                if "buffer" in text_lower or "load" in text_lower or "slow" in text_lower:
+                    extracted.append("buffering")
                 if "content" in text_lower or "movie" in text_lower or "show" in text_lower:
-                    topics.append("content")
-                if not topics:
-                    topics = ["general"]
+                    extracted.append("content")
+                if "crash" in text_lower or "freeze" in text_lower or "bug" in text_lower:
+                    extracted.append("crashes")
+                if "channel" in text_lower or "linear" in text_lower or "live" in text_lower:
+                    extracted.append("channels")
+                if "epg" in text_lower or "guide" in text_lower or "schedule" in text_lower:
+                    extracted.append("epg")
+                if "ui" in text_lower or "interface" in text_lower or "navigate" in text_lower or "menu" in text_lower:
+                    extracted.append("ui")
+                if "search" in text_lower or "find" in text_lower:
+                    extracted.append("search")
+                if "subtitle" in text_lower or "caption" in text_lower:
+                    extracted.append("subtitles")
+                topics = extracted if extracted else ["general"]
 
             items.append({
                 "source": "appstore",

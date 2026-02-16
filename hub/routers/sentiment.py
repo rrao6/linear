@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -11,7 +12,9 @@ from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
 
 from .. import db
-from ..config import SPROUT_SOCIAL_API_KEY
+from ..config import SPROUT_SOCIAL_API_KEY, OPENAI_API_KEY
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
 
@@ -60,14 +63,17 @@ def sentiment_summary():
 @router.get("/feed")
 def sentiment_feed(source: Optional[str] = None,
                    sentiment: Optional[str] = None,
+                   topic: Optional[str] = None,
                    limit: int = 50):
     """Get sentiment feed with optional filters."""
-    items = db.get_feedback(source=source, sentiment=sentiment, limit=limit)
+    items = db.get_feedback(source=source, sentiment=sentiment, limit=limit * 3 if topic else limit)
     for item in items:
         if isinstance(item.get("topics"), str):
             item["topics"] = json.loads(item["topics"])
         if isinstance(item.get("metadata"), str):
             item["metadata"] = json.loads(item["metadata"])
+    if topic:
+        items = [i for i in items if topic in (i.get("topics") or [])][:limit]
     return items
 
 
@@ -245,6 +251,47 @@ def trigger_all_collection():
         t.start()
         collectors.append(name)
     return {"status": "started", "collectors": collectors}
+
+
+# --- Enrich-all: reclassify all existing feedback ---
+
+def _run_enrich_all():
+    """Background task: reclassify all feedback items with OpenAI."""
+    from ..collectors.reddit import classify_sentiment
+    all_ids = db.get_all_feedback_ids()
+    total = len(all_ids)
+    updated = 0
+    errors = 0
+    for i, fid in enumerate(all_ids):
+        try:
+            fb = db.get_feedback_by_id(fid)
+            if not fb or not fb.get("text"):
+                continue
+            result = classify_sentiment(fb["text"])
+            sentiment = result.get("sentiment", "neutral")
+            score = result.get("score", 0.0)
+            topics = result.get("topics", ["general"])
+            db.update_feedback(fid, sentiment=sentiment,
+                               sentiment_score=score, topics=topics)
+            updated += 1
+            if (i + 1) % 50 == 0:
+                logger.info(f"Enrich-all progress: {i+1}/{total} ({updated} updated)")
+        except Exception as e:
+            errors += 1
+            logger.error(f"Enrich-all error on feedback {fid}: {e}")
+    logger.info(f"Enrich-all complete: {updated}/{total} updated, {errors} errors")
+
+
+@router.post("/enrich-all")
+def enrich_all_feedback():
+    """Reclassify all existing feedback items with OpenAI sentiment analysis."""
+    if not OPENAI_API_KEY:
+        return {"status": "error", "message": "OPENAI_API_KEY not configured"}
+    total = len(db.get_all_feedback_ids())
+    t = threading.Thread(target=_run_enrich_all, daemon=True)
+    t.start()
+    return {"status": "started", "total": total,
+            "message": f"Reclassifying {total} feedback items in background"}
 
 
 # --- Trends endpoint ---
