@@ -1,0 +1,321 @@
+{
+  "trends": {
+    "trends": [
+      {
+        "name": "Sports Streaming Expansion",
+        "category": "content",
+        "direction": "accelerating",
+        "strength": 8,
+        "description": "The inclusion of major sports events like the World Baseball Classic on streaming platforms such as Tubi and FOX Sports indicates a growing trend of sports content being made available on streaming services.",
+        "tubi_implication": "Tubi's involvement in streaming the World Baseball Classic enhances its content offering, potentially attracting sports fans and increasing viewership.",
+        "prediction": "In the next 6-12 months, more sports events will likely be streamed on platforms like Tubi, increasing competition among streaming services for sports content.",
+        "timeframe": "short_term",
+        "supporting_intel": [
+          "8368899094ba8db0",
+          "b160580497a8ae23",
+          "27283bc71b2985a3",
+          "4ce5e9810629e8af",
+          "cf1808d42aefd1df"
+        ]
+      },
+      {
+        "name": "Romantic and Family Content Focus",
+        "category": "content",
+        "direction": "emerging",
+        "strength": 7,
+        "description": "Tubi is expanding its content library with romantic films and family-friendly programming, such as adapting new romantic films and becoming the new Cartoon Network.",
+        "tubi_implication": "This strategy could attract a broader audience, including families and romance enthusiasts, enhancing Tubi's appeal as a diverse content provider.",
+        "prediction": "Tubi will likely continue to expand its romantic and family-friendly content offerings, potentially collaborating with other networks or studios.",
+        "timeframe": "medium_term",
+        "supporting_intel": [
+          "4a61ad8c215d6a3c",
+          "da5359f5a44f4501",
+          "afed38607a6deffa"
+        ]
+      },
+      {
+        "name": "Cheaper Streaming Bundles",
+        "category": "pricing",
+        "direction": "accelerating",
+        "strength": 9,
+        "description": "YouTube TV and other services are introducing cheaper bundles, including sports-focused packages, to attract cost-conscious consumers.",
+        "tubi_implication": "Tubi, as a free streaming service, could benefit from this trend by positioning itself as a cost-effective alternative to paid services.",
+        "prediction": "The trend of offering cheaper bundles will continue, with more streaming services adopting similar strategies to capture price-sensitive segments.",
+        "timeframe": "immediate",
+        "supporting_intel": [
+          "883908de7ed093bb",
+          "93b740d3035a59e9",
+          "d56b61d8deb350ed",
+          "62b9f487abc501b2",
+          "dc06f175cdefacad"
+        ]
+      },
+      {
+        "name": "Generative AI in Streaming",
+        "category": "technology",
+        "direction": "emerging",
+        "strength": 6,
+        "description": "Cineverse's launch of Matchpoint\u00ae Creative Labs using generative AI for creative services in FAST and ad-supported streaming indicates a growing interest in AI-driven content creation.",
+        "tubi_implication": "Tubi could explore AI technologies to enhance its content recommendation systems or streamline content creation processes.",
+        "prediction": "Generative AI will become more integrated into streaming services, offering new ways to create and recommend content.",
+        "timeframe": "medium_term",
+        "supporting_intel": [
+          "2465b5d388a9461c"
+        ]
+      }
+    ]
+  },
+  "opportunities": {
+    "opportunities": [
+      {
+        "opportunity_type": "content",
+        "potential_value": 9,
+        "feasibility": 8,
+        "title": "Leverage Sports Events Streaming",
+        "description": "Capitalize on the streaming of major sports events like the World Baseball Classic to increase engagement and attract sports fans.",
+        "action_items": [
+          "Enhance marketing efforts around sports events available on Tubi.",
+          "Create exclusive sports-related content or commentary to complement the events.",
+          "Collaborate with sports influencers to promote Tubi's sports streaming capabilities."
+        ],
+        "competitor_gap": "Competitors may not have the same level of access to high-profile sports events.",
+        "supporting_intel": [
+          "8368899094ba8db0",
+          "b160580497a8ae23",
+          "27283bc71b2985a3",
+          "4ce5e9810629e8af",
+          "cf1808d42aefd1df"
+        ]
+      },
+      {
+        "opportunity_type": "content",
+        "potential_value": 8,
+        "feasibility": 7,
+        "title": "Expand True Crime and Horror Offerings",
+        "description": "Enhance the True Crime and Horror content clusters to attract and retain viewers interested in these genres.",
+        "action_items": [
+          "Acquire more exclusive True Crime and Horror titles.",
+          "Develop original content in these genres.",
+          "Promote these genres through targeted marketing campaigns."
+        ],
+        "competitor_gap": "Competitors may not have as strong a focus on these niche genres.",
+        "supporting_intel": [
+          "07ee13d7be21a10e",
+          "44a26417c74d20d1"
+        ]
+      },
+      {
+        "opportunity_type": "content",
+        "potential_value": 7,
+        "feasibility": 8,
+        "title": "Enhance Family and Kids Programming",
+        "description": "Position Tubi as a go-to platform for family and kids programming by expanding content offerings in this category.",
+        "action_items": [
+          "Acquire popular family and kids shows and movies.",
+          "Create a dedicated section for family-friendly content.",
+          "Partner with educational content creators to offer value-added programming."
+        ],
+        "competitor_gap": "Competitors may not have a strong focus on free family and kids content.",
+        "supporting_intel": [
+          "da5359f5a44f4501",
+          "afed38607a6deffa"
+        ]
+      },
+      {
+        "opportunity_type": "partnership",
+        "potential_value": 8,
+        "feasibility": 6,
+        "title": "Form Strategic Partnerships with Sports Leagues",
+        "description": "Establish partnerships with sports leagues to secure exclusive streaming rights and enhance sports content offerings.",
+        "action_items": [
+          "Negotiate deals with sports leagues for exclusive streaming rights.",
+          "Collaborate with sports organizations for co-branded content and promotions.",
+          "Explore partnerships with sports influencers to expand reach."
+        ],
+        "competitor_gap": "Competitors may not have the same level of access to exclusive sports content.",
+        "supporting_intel": [
+          "8368899094ba8db0",
+          "b160580497a8ae23"
+        ]
+      },
+      {
+        "opportunity_type": "technology",
+        "potential_value": 7,
+        "feasibility": 7,
+        "title": "Integrate Generative AI for Content Personalization",
+        "description": "Utilize generative AI to enhance content personalization and recommendation systems, improving user engagement.",
+        "action_items": [
+          "Invest in AI technology to analyze viewer preferences.",
+          "Develop personalized content recommendations based on AI insights.",
+          "Collaborate with AI firms to enhance Tubi's technology stack."
+        ],
+        "competitor_gap": "Competitors may not be leveraging AI to the same extent for content personalization.",
+        "supporting_intel": [
+          "2465b5d388a9461c"
+        ]
+      }
+    ]
+  },
+  "profiles": {
+    "profiles": [
+      {
+        "competitor_id": "youtube_tv",
+        "name": "YouTube TV",
+        "recent_moves": [
+          "Introduced cheaper bundles, including a new sports plan",
+          "Announced new channels in cheaper TV packages",
+          "Rolled out cheaper plans, including a bundle with NBC Sports Philadelphia",
+          "Launched cheaper bundles starting at $54",
+          "Revealed sports bundle pricing and lineup",
+          "Introduced cheaper sports, news, and entertainment bundles",
+          "Launched a sports tier priced $18 less than the main plan",
+          "Plans launch from $55/month with $65 Sports Plan",
+          "Sports-only package to cost $65 per month, include ESPN Unlimited",
+          "Introduced cheaper bundles, including a $65/month sports package",
+          "Lower-priced, genre-specific plans will cost as little as $55 a month",
+          "Set to launch a sports-focused skinny bundle soon"
+        ],
+        "strategy_focus": "Pricing strategy with a focus on sports and genre-specific bundles",
+        "threat_level": 8,
+        "strengths_observed": [
+          "Aggressive pricing strategy",
+          "Diverse bundle offerings"
+        ],
+        "weaknesses_observed": [
+          "Criticism of sports-only package as poor value"
+        ],
+        "tubi_comparison": "YouTube TV is focusing on pricing and sports bundles, which could attract cost-conscious viewers, whereas Tubi is focusing on content expansion and partnerships."
+      },
+      {
+        "competitor_id": "samsung_tv_plus",
+        "name": "Samsung TV Plus",
+        "recent_moves": [
+          "Partnered with Major League Volleyball to engage the league's next generation of fans",
+          "Reached 100 million users, evolving from hardware roots to a global media platform"
+        ],
+        "strategy_focus": "Partnerships and user growth",
+        "threat_level": 6,
+        "strengths_observed": [
+          "Strong user base",
+          "Strategic partnerships"
+        ],
+        "weaknesses_observed": [],
+        "tubi_comparison": "Samsung TV Plus is leveraging partnerships and a large user base, while Tubi is focusing on content and sports broadcasting."
+      },
+      {
+        "competitor_id": "hulu_live",
+        "name": "Hulu Live",
+        "recent_moves": [
+          "Added Fubo Sports Network to channel lineup",
+          "Launched Fubo Sports Network on Hulu + Live TV",
+          "Added a sports channel to its live TV streaming lineup"
+        ],
+        "strategy_focus": "Content expansion with a focus on sports",
+        "threat_level": 7,
+        "strengths_observed": [
+          "Content expansion",
+          "Focus on sports"
+        ],
+        "weaknesses_observed": [],
+        "tubi_comparison": "Hulu Live is expanding its sports content, similar to Tubi's focus on sports broadcasting, but Tubi is also expanding into other content areas like romance and cartoons."
+      },
+      {
+        "competitor_id": "fubo",
+        "name": "FuboTV",
+        "recent_moves": [
+          "Discussed earnings momentum and investor moves",
+          "Reviewed pricing, plans, subscriptions, and free trials"
+        ],
+        "strategy_focus": "Financial growth and pricing strategy",
+        "threat_level": 6,
+        "strengths_observed": [
+          "Earnings momentum",
+          "Diverse pricing plans"
+        ],
+        "weaknesses_observed": [],
+        "tubi_comparison": "FuboTV is focusing on financial growth and pricing, while Tubi is expanding its content offerings and partnerships."
+      },
+      {
+        "competitor_id": "roku_channel",
+        "name": "Roku Channel",
+        "recent_moves": [
+          "Expanded free channels and news hub",
+          "Revamped free access to local news streaming",
+          "Expanded free local news streaming within The Roku Channel",
+          "Reported higher revenue and positive net income for 2025",
+          "Posted $80.5 million quarterly profit turnaround",
+          "Swung to profit in Q4 on record streaming subscription sign-ups"
+        ],
+        "strategy_focus": "Content expansion and financial growth",
+        "threat_level": 7,
+        "strengths_observed": [
+          "Content expansion",
+          "Strong financial performance"
+        ],
+        "weaknesses_observed": [],
+        "tubi_comparison": "Roku Channel is focusing on content expansion and financial growth, similar to Tubi's content expansion strategy, but Tubi is also focusing on sports broadcasting."
+      }
+    ]
+  },
+  "threats": {
+    "threats": [
+      {
+        "threat_type": "direct",
+        "severity": 8,
+        "source_competitor": "youtube_tv",
+        "title": "YouTube TV Launches Cheaper Bundles",
+        "description": "YouTube TV has introduced cheaper bundles, including a sports package, which could attract cost-conscious viewers and impact Tubi's competitive positioning in the streaming market.",
+        "defensive_action": "Tubi should consider enhancing its content offerings and exploring partnerships to provide exclusive content or features that differentiate it from YouTube TV.",
+        "timeframe": "immediate",
+        "supporting_intel": [
+          "883908de7ed093bb",
+          "93b740d3035a59e9",
+          "d56b61d8deb350ed",
+          "62b9f487abc501b2",
+          "dc06f175cdefacad",
+          "938809d47f5b8fd6",
+          "fdaec4173b77b7b6",
+          "ab301d55770bf560",
+          "7941e4068a37eacf",
+          "80f0ba701fae8554",
+          "3001a6a001ec88a1",
+          "f41877cb1c6e56d4",
+          "8778bb2eb3a41d5b",
+          "449dae7d95e6cc9d",
+          "0c7267af9b3c4900",
+          "8305f8cc6538c3d3",
+          "2a2b404da0df4653"
+        ]
+      },
+      {
+        "threat_type": "indirect",
+        "severity": 7,
+        "source_competitor": "samsung_tv_plus",
+        "title": "Samsung TV Plus Reaches 100 Million Users",
+        "description": "Samsung TV Plus has reached 100 million users, indicating strong growth and potential competition for Tubi in the ad-supported streaming market.",
+        "defensive_action": "Tubi should focus on user acquisition strategies and consider partnerships to expand its reach and user base.",
+        "timeframe": "short_term",
+        "supporting_intel": [
+          "a58c61d22e6e38df"
+        ]
+      },
+      {
+        "threat_type": "indirect",
+        "severity": 6,
+        "source_competitor": "industry",
+        "title": "Cineverse Launches Matchpoint Creative Labs",
+        "description": "Cineverse has launched Matchpoint Creative Labs, utilizing generative AI for creative services in FAST and ad-supported streaming, which could impact the competitive landscape for ad-supported services like Tubi.",
+        "defensive_action": "Tubi should explore AI-driven content creation and personalization to enhance user engagement and stay competitive.",
+        "timeframe": "medium_term",
+        "supporting_intel": [
+          "2465b5d388a9461c"
+        ]
+      }
+    ]
+  },
+  "tokens": {
+    "prompt_tokens": 71151,
+    "completion_tokens": 3282,
+    "total_tokens": 74433
+  }
+}
