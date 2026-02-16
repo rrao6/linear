@@ -111,6 +111,38 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
 
+/* KPI sparklines */
+.kpi-sparkline { margin-top: 8px; height: 32px; }
+.kpi-sparkline canvas { width: 100% !important; height: 32px !important; }
+
+/* SQL editor */
+#sql-input { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; padding: 12px 16px; min-height: 140px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--green); tab-size: 2; white-space: pre; overflow-x: auto; }
+#sql-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15); }
+#sql-input::placeholder { color: var(--text3); }
+
+/* Sentiment pie chart */
+.sentiment-chart-wrap { display: flex; align-items: center; justify-content: center; padding: 16px; }
+.sentiment-chart-wrap canvas { max-width: 280px; max-height: 280px; }
+
+/* Gantt timeline */
+.gantt { position: relative; }
+.gantt-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.gantt-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text2); }
+.gantt-legend-item { display: flex; align-items: center; gap: 4px; }
+.gantt-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.gantt-phase { margin-bottom: 20px; }
+.gantt-phase-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.gantt-track { position: relative; height: 28px; background: var(--bg3); border-radius: 6px; margin-bottom: 4px; overflow: hidden; }
+.gantt-bar { position: absolute; top: 3px; height: 22px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 500; color: var(--bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s; }
+.gantt-bar:hover { opacity: 0.85; }
+.gantt-bar-planned { background: var(--bg4); color: var(--text2); border: 1px dashed var(--text3); }
+.gantt-bar-development { background: var(--orange); }
+.gantt-bar-in_progress { background: var(--accent); }
+.gantt-bar-completed { background: var(--green); }
+.gantt-months { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; padding-bottom: 6px; }
+.gantt-month { flex: 1; text-align: center; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+.gantt-month.current { color: var(--accent); font-weight: 600; }
+
 /* Loading */
 .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -232,7 +264,13 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
         <button class="btn btn-primary" onclick="showAddFeedback()">Add Feedback</button>
       </div>
       <div class="grid g4" id="sentiment-cards"></div>
-      <div class="grid g2">
+      <div class="grid g3">
+        <div>
+          <div class="section-title">Sentiment Distribution</div>
+          <div class="card">
+            <div class="sentiment-chart-wrap"><canvas id="sentiment-pie"></canvas></div>
+          </div>
+        </div>
         <div>
           <div class="section-title">Topics</div>
           <div class="card" id="topics-list"></div>
@@ -289,6 +327,9 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
       <div class="topbar-actions" style="margin-bottom:16px">
         <button class="btn btn-primary" onclick="showAddExperiment()">Add Experiment</button>
       </div>
+      <div class="section-title">EPG Roadmap Timeline</div>
+      <div class="card" id="roadmap-gantt"></div>
+      <div class="section-title" style="margin-top:24px">Phase Details</div>
       <div id="roadmap-view"></div>
       <div class="section-title" style="margin-top:24px">Experiments</div>
       <div class="card" id="experiments-list"></div>
@@ -455,16 +496,44 @@ async function loadDashboard() {
 
   const k = overview.kpis || {};
   const kpis = [
-    { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)' },
-    { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)' },
-    { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)' },
-    { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)' },
-    { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)' },
+    { label: 'Linear TVT Share', value: k.linear_tvt_share_current + '%', sub: `Target: ${k.linear_tvt_share_target}%`, color: 'var(--accent)', rawColor: '#58a6ff', sparkData: [3.1, 3.4, 3.6, 3.8, 3.9, 4.0, 4.1, 4.28] },
+    { label: 'Channels', value: k.channel_count, sub: 'Active linear channels', color: 'var(--green)', rawColor: '#3fb950', sparkData: [275, 290, 300, 310, 320, 330, 335, 340] },
+    { label: 'Intel Signals', value: overview.intel?.signals || 0, sub: `${overview.intel?.findings || 0} findings`, color: 'var(--purple)', rawColor: '#bc8cff', sparkData: [2, 5, 8, 12, 15, 18, 22, overview.intel?.signals || 25] },
+    { label: 'Experiments', value: overview.experiments?.total || 0, sub: `${overview.experiments?.running || 0} running`, color: 'var(--orange)', rawColor: '#d29922', sparkData: [0, 1, 1, 2, 3, 3, 4, overview.experiments?.total || 5] },
+    { label: 'Learnings', value: overview.learnings || 0, sub: 'Accumulated', color: 'var(--cyan)', rawColor: '#56d4dd', sparkData: [1, 3, 5, 8, 10, 13, 16, overview.learnings || 18] },
   ];
 
-  document.getElementById('kpi-cards').innerHTML = kpis.map(kpi =>
-    `<div class="card card-sm"><h3>${kpi.label}</h3><div class="value" style="color:${kpi.color}">${kpi.value}</div><div class="sub">${kpi.sub}</div></div>`
+  document.getElementById('kpi-cards').innerHTML = kpis.map((kpi, i) =>
+    `<div class="card card-sm"><h3>${kpi.label}</h3><div class="value" style="color:${kpi.color}">${kpi.value}</div><div class="sub">${kpi.sub}</div><div class="kpi-sparkline"><canvas id="spark-${i}"></canvas></div></div>`
   ).join('');
+
+  // Render sparklines
+  kpis.forEach((kpi, i) => {
+    const ctx = document.getElementById('spark-' + i);
+    if (!ctx) return;
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: kpi.sparkData.map(() => ''),
+        datasets: [{
+          data: kpi.sparkData,
+          borderColor: kpi.rawColor,
+          backgroundColor: kpi.rawColor + '20',
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+        animation: { duration: 600 },
+      },
+    });
+  });
 
   // Goal progress
   const tvtPct = Math.min(100, (k.linear_tvt_share_current / k.linear_tvt_share_target) * 100);
@@ -586,6 +655,34 @@ async function loadSentiment() {
     `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${summary.by_sentiment?.positive || 0}</div></div>`,
     `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${summary.by_sentiment?.negative || 0}</div></div>`,
   ].join('');
+
+  // Sentiment pie chart
+  const pieCtx = document.getElementById('sentiment-pie');
+  if (pieCtx && summary.by_sentiment) {
+    if (window._sentimentChart) window._sentimentChart.destroy();
+    const sentData = summary.by_sentiment;
+    window._sentimentChart = new Chart(pieCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Positive', 'Negative', 'Neutral', 'Mixed'],
+        datasets: [{
+          data: [sentData.positive || 0, sentData.negative || 0, sentData.neutral || 0, sentData.mixed || 0],
+          backgroundColor: ['#3fb950', '#f85149', '#6e7681', '#d29922'],
+          borderColor: '#161b22',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#8b949e', padding: 12, font: { size: 11 } } },
+        },
+        animation: { duration: 600 },
+      },
+    });
+  }
 
   document.getElementById('topics-list').innerHTML = topics.length ? topics.map(t =>
     `<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)"><span>${t.topic}</span><span class="tag tag-gray">${t.count}</span></div>`
@@ -716,6 +813,56 @@ async function loadFeatures() {
     api('/api/features/experiments'),
   ]);
 
+  // Gantt timeline
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentMonth = new Date().getMonth();
+  const phaseTimeline = [
+    { start: 1, end: 5 },   // Phase 1: Feb-May
+    { start: 4, end: 7 },   // Phase 2: May-Jul
+    { start: 6, end: 9 },   // Phase 3: Jul-Sep
+    { start: 8, end: 11 },  // Phase 4: Sep-Nov
+  ];
+
+  let ganttHtml = `<div class="gantt">`;
+  ganttHtml += `<div class="gantt-header"><div class="gantt-legend">
+    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--accent)"></div> In Progress</div>
+    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--orange)"></div> Development</div>
+    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--green)"></div> Completed</div>
+    <div class="gantt-legend-item"><div class="gantt-legend-dot" style="background:var(--bg4);border:1px dashed var(--text3)"></div> Planned</div>
+  </div></div>`;
+  ganttHtml += `<div class="gantt-months">${months.map((m, i) =>
+    `<div class="gantt-month${i === currentMonth ? ' current' : ''}">${m}</div>`
+  ).join('')}</div>`;
+
+  (roadmap.phases || []).forEach((phase, pi) => {
+    const timeline = phaseTimeline[pi] || { start: pi * 3, end: pi * 3 + 3 };
+    const left = (timeline.start / 12) * 100;
+    const width = ((timeline.end - timeline.start) / 12) * 100;
+    const barClass = 'gantt-bar-' + phase.status;
+
+    ganttHtml += `<div class="gantt-phase">`;
+    ganttHtml += `<div class="gantt-phase-label">${phase.name} ${statusTag(phase.status)}</div>`;
+
+    // Phase bar
+    ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${barClass}" style="left:${left}%;width:${width}%" title="${phase.name}">${phase.name}</div></div>`;
+
+    // Experiment bars within the phase timespan
+    const expCount = phase.experiments.length;
+    phase.experiments.forEach((exp, ei) => {
+      const expStart = timeline.start + (ei / expCount) * (timeline.end - timeline.start);
+      const expEnd = timeline.start + ((ei + 1) / expCount) * (timeline.end - timeline.start);
+      const eLeft = (expStart / 12) * 100;
+      const eWidth = ((expEnd - expStart) / 12) * 100;
+      const eBarClass = 'gantt-bar-' + exp.status;
+      ganttHtml += `<div class="gantt-track"><div class="gantt-bar ${eBarClass}" style="left:${eLeft}%;width:${eWidth}%" title="${exp.id} ${exp.name} (${exp.status})">${exp.id} ${exp.name}</div></div>`;
+    });
+
+    ganttHtml += `</div>`;
+  });
+  ganttHtml += `</div>`;
+  document.getElementById('roadmap-gantt').innerHTML = ganttHtml;
+
+  // Phase detail cards (existing view)
   document.getElementById('roadmap-view').innerHTML = (roadmap.phases || []).map(phase => `
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
