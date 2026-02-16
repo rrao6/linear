@@ -387,11 +387,28 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 
     <!-- SENTIMENT PAGE -->
     <div class="page" id="page-sentiment">
-      <div class="topbar-actions" style="margin-bottom:16px">
+      <div class="topbar-actions" style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="showAddFeedback()">Add Feedback</button>
+        <button class="btn" onclick="collectNow()">Collect Now</button>
+        <button class="btn" onclick="enrichAll()">Re-classify All</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <select id="sent-filter-source" onchange="loadSentiment()" style="width:auto;padding:4px 8px;font-size:12px">
+            <option value="">All Sources</option>
+          </select>
+          <select id="sent-filter-sentiment" onchange="loadSentiment()" style="width:auto;padding:4px 8px;font-size:12px">
+            <option value="">All Sentiments</option>
+            <option value="positive">Positive</option>
+            <option value="negative">Negative</option>
+            <option value="neutral">Neutral</option>
+            <option value="mixed">Mixed</option>
+          </select>
+          <select id="sent-filter-topic" onchange="filterFeedbackByTopic()" style="width:auto;padding:4px 8px;font-size:12px">
+            <option value="">All Topics</option>
+          </select>
+        </div>
       </div>
       <div class="grid g4" id="sentiment-cards"></div>
-      <div class="grid g3">
+      <div class="grid g2" style="margin-bottom:16px">
         <div>
           <div class="section-title">Sentiment Distribution</div>
           <div class="card">
@@ -399,12 +416,22 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
           </div>
         </div>
         <div>
-          <div class="section-title">Topics</div>
-          <div class="card" id="topics-list"></div>
+          <div class="section-title">Source Breakdown</div>
+          <div class="card">
+            <div style="padding:16px"><canvas id="source-bar" style="max-height:280px"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div>
+          <div class="section-title">Topic Frequency</div>
+          <div class="card">
+            <div style="padding:16px"><canvas id="topic-bar" style="max-height:320px"></canvas></div>
+          </div>
         </div>
         <div>
-          <div class="section-title">Recent Feedback</div>
-          <div class="card" id="feedback-list" style="max-height:500px;overflow-y:auto"></div>
+          <div class="section-title">Feedback Feed <span class="count" id="feed-count"></span></div>
+          <div class="card" id="feedback-list" style="max-height:600px;overflow-y:auto"></div>
         </div>
       </div>
     </div>
@@ -1284,24 +1311,54 @@ async function triggerScan() {
 }
 
 // --- Sentiment ---
+let _sentimentFeedCache = []; // cache for client-side topic filtering
+
 async function loadSentiment() {
   showLoading('sentiment-cards');
-  showLoading('topics-list');
   showLoading('feedback-list');
 
+  const sourceFilter = document.getElementById('sent-filter-source')?.value || '';
+  const sentimentFilter = document.getElementById('sent-filter-sentiment')?.value || '';
+
   try {
+    const feedParams = new URLSearchParams({ limit: '200' });
+    if (sourceFilter) feedParams.set('source', sourceFilter);
+    if (sentimentFilter) feedParams.set('sentiment', sentimentFilter);
+
     const [summary, topics, feed] = await Promise.all([
       api('/api/sentiment/summary'),
       api('/api/sentiment/topics'),
-      api('/api/sentiment/feed?limit=50'),
+      api('/api/sentiment/feed?' + feedParams),
     ]);
 
+    // KPI cards
+    const bs = summary.by_sentiment || {};
+    const posRate = summary.total > 0 ? Math.round(((bs.positive || 0) / summary.total) * 100) : 0;
+    const negRate = summary.total > 0 ? Math.round(((bs.negative || 0) / summary.total) * 100) : 0;
     document.getElementById('sentiment-cards').innerHTML = [
-      `<div class="card card-sm"><h3>Total Feedback</h3><div class="value">${summary.total}</div></div>`,
-      `<div class="card card-sm"><h3>Avg Score</h3><div class="value" style="color:${summary.avg_score >= 0 ? 'var(--green)' : 'var(--red)'}">${summary.avg_score}</div><div class="sub">-1 to +1</div></div>`,
-      `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${summary.by_sentiment?.positive || 0}</div></div>`,
-      `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${summary.by_sentiment?.negative || 0}</div></div>`,
+      `<div class="card card-sm"><h3>Total Feedback</h3><div class="value">${summary.total}</div><div class="sub">${Object.keys(summary.by_source || {}).length} sources</div></div>`,
+      `<div class="card card-sm"><h3>Avg Score</h3><div class="value" style="color:${summary.avg_score >= 0 ? 'var(--green)' : 'var(--red)'}">${summary.avg_score}</div><div class="sub">-1.0 to +1.0</div></div>`,
+      `<div class="card card-sm"><h3>Positive</h3><div class="value" style="color:var(--green)">${bs.positive || 0}</div><div class="sub">${posRate}% of total</div></div>`,
+      `<div class="card card-sm"><h3>Negative</h3><div class="value" style="color:var(--red)">${bs.negative || 0}</div><div class="sub">${negRate}% of total</div></div>`,
     ].join('');
+
+    // Populate source filter dropdown (preserve selection)
+    const srcSelect = document.getElementById('sent-filter-source');
+    const currentSrc = srcSelect.value;
+    const srcOptions = ['<option value="">All Sources</option>'];
+    Object.keys(summary.by_source || {}).sort().forEach(s => {
+      srcOptions.push(`<option value="${s}" ${s === currentSrc ? 'selected' : ''}>${s} (${summary.by_source[s]})</option>`);
+    });
+    srcSelect.innerHTML = srcOptions.join('');
+
+    // Populate topic filter dropdown
+    const topicSelect = document.getElementById('sent-filter-topic');
+    const currentTopic = topicSelect.value;
+    const topicOptions = ['<option value="">All Topics</option>'];
+    topics.forEach(t => {
+      topicOptions.push(`<option value="${t.topic}" ${t.topic === currentTopic ? 'selected' : ''}>${t.topic} (${t.count})</option>`);
+    });
+    topicSelect.innerHTML = topicOptions.join('');
 
     // Sentiment pie chart
     const pieCtx = document.getElementById('sentiment-pie');
@@ -1334,16 +1391,121 @@ async function loadSentiment() {
       }
     }
 
-    document.getElementById('topics-list').innerHTML = topics.length ? topics.map(t =>
-      `<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)"><span>${t.topic}</span><span class="tag tag-gray">${t.count}</span></div>`
-    ).join('') : emptyState('&#9829;', 'No topics yet', 'Add feedback to see emerging themes');
+    // Source breakdown bar chart
+    const srcCtx = document.getElementById('source-bar');
+    if (srcCtx && summary.by_source) {
+      if (window._sourceChart) window._sourceChart.destroy();
+      const srcLabels = Object.keys(summary.by_source).sort((a, b) => summary.by_source[b] - summary.by_source[a]);
+      const srcValues = srcLabels.map(s => summary.by_source[s]);
+      const srcColors = srcLabels.map((_, i) => ['#58a6ff', '#3fb950', '#f85149', '#d29922', '#bc8cff', '#f778ba', '#56d4dd', '#e3b341'][i % 8]);
+      window._sourceChart = new Chart(srcCtx, {
+        type: 'bar',
+        data: {
+          labels: srcLabels,
+          datasets: [{ data: srcValues, backgroundColor: srcColors, borderRadius: 4 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true, indexAxis: 'x',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { display: false } },
+            y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    }
 
-    document.getElementById('feedback-list').innerHTML = feed.length ? feed.map(f =>
-      `<div class="list-item"><div style="display:flex;justify-content:space-between"><span class="tag tag-${f.sentiment === 'positive' ? 'green' : f.sentiment === 'negative' ? 'red' : 'gray'}">${f.sentiment}</span><span style="font-size:11px;color:var(--text3)">${f.source}</span></div><div style="font-size:13px;margin-top:6px">${escapeHtml(f.text)}</div><div class="list-item-meta" style="margin-top:4px">${f.author ? `<span>${f.author}</span>` : ''}${f.collected_at ? `<span>${new Date(f.collected_at).toLocaleDateString()}</span>` : ''}</div></div>`
-    ).join('') : emptyState('&#9829;', 'No feedback yet', 'Collect user feedback from Reddit, App Store, or manual entries', '<button class="btn btn-primary btn-sm" onclick="showAddFeedback()">Add Feedback</button>');
+    // Topic frequency horizontal bar chart
+    const topCtx = document.getElementById('topic-bar');
+    if (topCtx && topics.length) {
+      if (window._topicChart) window._topicChart.destroy();
+      const topLabels = topics.slice(0, 15).map(t => t.topic);
+      const topValues = topics.slice(0, 15).map(t => t.count);
+      window._topicChart = new Chart(topCtx, {
+        type: 'bar',
+        data: {
+          labels: topLabels,
+          datasets: [{ data: topValues, backgroundColor: '#bc8cff', borderRadius: 4 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true, indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+            y: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { display: false } },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    }
+
+    // Feedback feed
+    _sentimentFeedCache = feed;
+    renderFeedbackFeed(feed);
   } catch (err) {
     // Error toast already shown
   }
+}
+
+function sentimentColor(s) {
+  return s === 'positive' ? 'green' : s === 'negative' ? 'red' : s === 'mixed' ? 'orange' : 'gray';
+}
+
+function renderFeedbackFeed(feed) {
+  document.getElementById('feed-count').textContent = `(${feed.length})`;
+  document.getElementById('feedback-list').innerHTML = feed.length ? feed.map(f => {
+    const sc = sentimentColor(f.sentiment);
+    const topicsList = (Array.isArray(f.topics) ? f.topics : []).filter(t => t !== 'general');
+    const topicTags = topicsList.map(t => `<span class="tag tag-purple" style="font-size:10px;margin-right:4px">${escapeHtml(t)}</span>`).join('');
+    return `<div class="list-item" style="border-left:3px solid var(--${sc})">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag tag-blue" style="font-size:10px">${f.source}</span>
+          <span class="tag tag-${sc}">${f.sentiment}</span>
+          ${f.sentiment_score != null ? `<span style="font-size:10px;color:var(--text3)">${f.sentiment_score > 0 ? '+' : ''}${Number(f.sentiment_score).toFixed(1)}</span>` : ''}
+        </div>
+        <span style="font-size:10px;color:var(--text3)">${f.collected_at ? new Date(f.collected_at).toLocaleDateString() : ''}</span>
+      </div>
+      <div style="font-size:13px;margin-top:6px;color:var(--text)">${escapeHtml((f.text || '').substring(0, 300))}${(f.text || '').length > 300 ? '...' : ''}</div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${topicTags}
+        ${f.author ? `<span style="font-size:10px;color:var(--text3);margin-left:auto">${escapeHtml(f.author)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('') : emptyState('&#9829;', 'No feedback yet', 'Collect user feedback from Reddit, App Store, or manual entries', '<button class="btn btn-primary btn-sm" onclick="showAddFeedback()">Add Feedback</button>');
+}
+
+function filterFeedbackByTopic() {
+  const topic = document.getElementById('sent-filter-topic')?.value || '';
+  if (!topic) {
+    renderFeedbackFeed(_sentimentFeedCache);
+    return;
+  }
+  const filtered = _sentimentFeedCache.filter(f => {
+    const topics = Array.isArray(f.topics) ? f.topics : [];
+    return topics.includes(topic);
+  });
+  renderFeedbackFeed(filtered);
+}
+
+async function collectNow() {
+  showToast('Starting collection from Reddit and App Store...', 'info');
+  try {
+    await Promise.all([
+      api('/api/sentiment/collect/reddit', { method: 'POST' }),
+      api('/api/sentiment/collect/appstore', { method: 'POST' }),
+    ]);
+    showToast('Collection started in background. Refresh in a moment to see new items.', 'success');
+  } catch (err) {}
+}
+
+async function enrichAll() {
+  showToast('Starting re-classification of all feedback items...', 'info');
+  try {
+    const r = await api('/api/sentiment/enrich-all', { method: 'POST' });
+    showToast(`Re-classifying ${r.total} items in background. This may take a few minutes.`, 'success');
+  } catch (err) {}
 }
 
 function showAddFeedback() {

@@ -459,6 +459,32 @@ def get_feedback(source: str = None, sentiment: str = None, limit: int = 100) ->
         return [dict(r) for r in conn.execute(query, params).fetchall()]
 
 
+def update_feedback(id: int, sentiment: str = None, sentiment_score: float = None,
+                    topics: list = None) -> bool:
+    """Update sentiment and topics on an existing feedback item."""
+    updates = {}
+    if sentiment is not None:
+        updates["sentiment"] = sentiment
+    if sentiment_score is not None:
+        updates["sentiment_score"] = sentiment_score
+    if topics is not None:
+        updates["topics"] = json.dumps(topics)
+    if not updates:
+        return False
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    with get_db() as conn:
+        conn.execute(f"UPDATE feedback SET {set_clause} WHERE id = ?",
+                     list(updates.values()) + [id])
+    return True
+
+
+def get_all_feedback_ids() -> list:
+    """Return all feedback IDs for bulk processing."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT id FROM feedback ORDER BY id").fetchall()
+        return [r["id"] for r in rows]
+
+
 def get_sentiment_summary() -> dict:
     with get_db() as conn:
         total = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
@@ -839,7 +865,7 @@ def create_enrichment(feedback_id: int, entities: dict, user_context: dict,
         return cur.lastrowid
 
 
-def get_enrichment(feedback_id: int) -> "dict | None":
+def get_enrichment(feedback_id: int) -> Optional[dict]:
     with get_db() as conn:
         row = conn.execute(
             "SELECT * FROM enrichments WHERE feedback_id = ?", (feedback_id,)
@@ -867,7 +893,7 @@ def get_unenriched_feedback_ids(limit: int = 500) -> list:
         return [r["id"] for r in rows]
 
 
-def get_feedback_by_id(feedback_id: int) -> "dict | None":
+def get_feedback_by_id(feedback_id: int) -> Optional[dict]:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM feedback WHERE id = ?", (feedback_id,)).fetchone()
         if not row:
