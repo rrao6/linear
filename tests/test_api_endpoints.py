@@ -628,6 +628,109 @@ if history and len(history) > 0:
 
 
 # ============================================================
+# PHASE 9: Knowledge engine endpoints
+# ============================================================
+print("\n" + "=" * 60)
+print("PHASE 9: Testing knowledge engine endpoints")
+print("=" * 60)
+
+# GET endpoints (should work without OpenAI)
+test_get("GET /api/knowledge/reviews", "/api/knowledge/reviews", expect_type=list)
+test_get("GET /api/knowledge/ideas", "/api/knowledge/ideas", expect_type=list)
+test_get("GET /api/knowledge/insights", "/api/knowledge/insights", expect_type=list)
+
+# POST /api/knowledge/review-prd — requires OpenAI, expect 200 or 503
+print("\n--- Knowledge: PRD Review (requires OpenAI) ---")
+try:
+    r = requests.post(f"{BASE}/api/knowledge/review-prd",
+        json={"prd_content": "# EPG Redesign\n\nRedesign the EPG for better navigation.\n\n## Success Metrics\n- Increase linear TVT by 5%"},
+        timeout=60)
+    if r.status_code == 200:
+        data = r.json()
+        report("POST review-prd returns score", "score" in data.get("feedback", {}),
+               f"score={data.get('score')}, id={data.get('id')}")
+    elif r.status_code == 503:
+        report("POST review-prd returns 503 (no OpenAI key)", True, "expected without API key")
+    else:
+        report("POST review-prd unexpected status", False, f"status={r.status_code}")
+except Exception as e:
+    report("POST review-prd", False, str(e))
+
+# POST /api/knowledge/review-prd — missing content
+try:
+    r = requests.post(f"{BASE}/api/knowledge/review-prd", json={}, timeout=10)
+    report("POST review-prd empty returns 400", r.status_code == 400,
+           f"status={r.status_code}")
+except Exception as e:
+    report("POST review-prd empty", False, str(e))
+
+# POST /api/knowledge/generate-ideas — requires OpenAI
+print("\n--- Knowledge: Idea Generator (requires OpenAI) ---")
+try:
+    r = requests.post(f"{BASE}/api/knowledge/generate-ideas",
+        json={"area": "epg"}, timeout=60)
+    if r.status_code == 200:
+        data = r.json()
+        report("POST generate-ideas returns ideas", data.get("count", 0) > 0,
+               f"count={data.get('count')}, gen_id={data.get('generation_id')}")
+    elif r.status_code == 503:
+        report("POST generate-ideas returns 503 (no OpenAI key)", True, "expected without API key")
+    else:
+        report("POST generate-ideas unexpected status", False, f"status={r.status_code}")
+except Exception as e:
+    report("POST generate-ideas", False, str(e))
+
+# GET /api/knowledge/ideas — verify ideas stored
+ideas_data = test_get("GET /api/knowledge/ideas (after generate)", "/api/knowledge/ideas", expect_type=list)
+
+# GET /api/knowledge/ideas?area=epg — filter by area
+test_get("GET /api/knowledge/ideas?area=epg", "/api/knowledge/ideas?area=epg", expect_type=list)
+
+# PUT /api/knowledge/ideas/{id}/vote — vote on an idea
+if ideas_data and len(ideas_data) > 0:
+    idea_id = ideas_data[0]["id"]
+    vote_result = test_put(f"PUT /api/knowledge/ideas/{idea_id}/vote (upvote)",
+        f"/api/knowledge/ideas/{idea_id}/vote?direction=1", {})
+    if vote_result:
+        report("Vote returns new votes count", "votes" in vote_result,
+               f"votes={vote_result.get('votes')}")
+
+# POST /api/knowledge/synthesize — requires OpenAI
+print("\n--- Knowledge: Insight Synthesizer (requires OpenAI) ---")
+try:
+    r = requests.post(f"{BASE}/api/knowledge/synthesize",
+        json={"question": "Why is linear TVT declining?"}, timeout=60)
+    if r.status_code == 200:
+        data = r.json()
+        report("POST synthesize returns answer", bool(data.get("answer_md")),
+               f"id={data.get('id')}, answer_length={len(data.get('answer_md', ''))}")
+    elif r.status_code == 503:
+        report("POST synthesize returns 503 (no OpenAI key)", True, "expected without API key")
+    else:
+        report("POST synthesize unexpected status", False, f"status={r.status_code}")
+except Exception as e:
+    report("POST synthesize", False, str(e))
+
+# GET /api/knowledge/insights — list insights
+test_get("GET /api/knowledge/insights (after synthesize)", "/api/knowledge/insights", expect_type=list)
+
+# GET /api/knowledge/digest — requires OpenAI
+print("\n--- Knowledge: Weekly Digest (requires OpenAI) ---")
+try:
+    r = requests.get(f"{BASE}/api/knowledge/digest", timeout=60)
+    if r.status_code == 200:
+        data = r.json()
+        report("GET digest returns markdown", bool(data.get("digest_md")),
+               f"period={data.get('period')}, stats={data.get('stats')}")
+    elif r.status_code == 503:
+        report("GET digest returns 503 (no OpenAI key)", True, "expected without API key")
+    else:
+        report("GET digest unexpected status", False, f"status={r.status_code}")
+except Exception as e:
+    report("GET digest", False, str(e))
+
+
+# ============================================================
 # SUMMARY
 # ============================================================
 print("\n" + "=" * 60)
