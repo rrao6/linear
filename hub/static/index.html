@@ -345,30 +345,45 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
 
     <!-- DATA EXPLORER PAGE -->
     <div class="page" id="page-data">
-      <div class="grid g2">
-        <div>
-          <div class="section-title">Query Library</div>
-          <div class="card" id="query-library"></div>
+      <div style="display:flex;gap:16px">
+        <!-- Main query area -->
+        <div style="flex:1;min-width:0">
+          <div class="section-title">SQL Editor</div>
+          <div class="card">
+            <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+              <label style="font-size:12px;color:var(--text2);white-space:nowrap">Named Query:</label>
+              <select id="named-query-select" onchange="selectNamedQuery()" style="flex:1">
+                <option value="">-- Select a canonical query --</option>
+              </select>
+            </div>
+            <textarea id="sql-input" placeholder="SELECT ... FROM core_prod.session.video_session WHERE date >= CURRENT_DATE - INTERVAL 7 DAYS AND tvt_millisec > 0 LIMIT 100"></textarea>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+              <button class="btn btn-primary" onclick="runSQL()">Run Query</button>
+              <button class="btn" onclick="runSelectedNamedQuery()">Run Named</button>
+              <span id="query-status" style="font-size:12px;color:var(--text3);line-height:32px"></span>
+            </div>
+          </div>
+          <div class="section-title" style="margin-top:16px">Results</div>
+          <div class="card">
+            <div class="table-wrap" id="query-results"><div class="empty">Run a query to see results</div></div>
+          </div>
+          <div class="grid g2" style="margin-top:16px">
+            <div>
+              <div class="section-title">Key Tables</div>
+              <div class="card" id="tables-ref"></div>
+            </div>
+            <div>
+              <div class="section-title">Query Library</div>
+              <div class="card" id="query-library" style="max-height:400px;overflow-y:auto"></div>
+            </div>
+          </div>
         </div>
-        <div>
-          <div class="section-title">Key Tables</div>
-          <div class="card" id="tables-ref"></div>
+        <!-- History sidebar -->
+        <div style="width:280px;flex-shrink:0">
+          <div class="section-title">Query History</div>
+          <div class="card" id="query-history" style="max-height:calc(100vh - 140px);overflow-y:auto"></div>
         </div>
       </div>
-      <div class="section-title" style="margin-top:16px">Custom SQL</div>
-      <div class="card">
-        <textarea id="sql-input" placeholder="SELECT ... FROM core_prod.session.video_session WHERE date >= CURRENT_DATE - INTERVAL 7 DAYS AND tvt_millisec > 0 LIMIT 100"></textarea>
-        <div style="margin-top:8px;display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="runSQL()">Execute</button>
-          <span id="query-status" style="font-size:12px;color:var(--text3);line-height:32px"></span>
-        </div>
-      </div>
-      <div class="section-title" style="margin-top:16px">Results</div>
-      <div class="card">
-        <div class="table-wrap" id="query-results"><div class="empty">Run a query to see results</div></div>
-      </div>
-      <div class="section-title" style="margin-top:16px">Query History</div>
-      <div class="card" id="query-history"></div>
     </div>
 
     <!-- VERIFICATIONS PAGE -->
@@ -386,25 +401,32 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
     <!-- FEATURES PAGE -->
     <div class="page" id="page-features">
       <div class="topbar-actions" style="margin-bottom:16px">
-        <button class="btn btn-primary" onclick="showAddExperiment()">Add Experiment</button>
+        <button class="btn btn-primary" onclick="showAddExperiment()">New Experiment</button>
       </div>
-      <div class="section-title">EPG Roadmap Timeline</div>
+      <div class="section-title">Experiments <span class="count" id="exp-count"></span></div>
+      <div class="grid g2" id="experiment-cards"></div>
+      <div class="section-title" style="margin-top:24px">EPG Roadmap Timeline</div>
       <div class="card" id="roadmap-gantt"></div>
       <div class="section-title" style="margin-top:24px">Phase Details</div>
       <div id="roadmap-view"></div>
-      <div class="section-title" style="margin-top:24px">Experiments</div>
-      <div class="card" id="experiments-list"></div>
     </div>
 
     <!-- OEM TRACKER PAGE -->
     <div class="page" id="page-oem">
       <div class="topbar-actions" style="margin-bottom:16px">
         <button class="btn btn-primary" onclick="showAddOEM()">Add Snapshot</button>
+        <button class="btn" onclick="showAddGracenote()">Add Gracenote Mapping</button>
       </div>
-      <div class="section-title">Platform Overview</div>
+      <div class="section-title">Platform Overview <span class="count" id="oem-source"></span></div>
       <div class="grid g3" id="platform-cards"></div>
-      <div class="section-title" style="margin-top:16px">Gracenote ID Mappings</div>
-      <div class="card" id="gracenote-list"></div>
+      <div class="section-title" style="margin-top:16px">Gracenote ID Lookup</div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="gracenote-search" placeholder="Search by Tubi content ID, Gracenote ID, or name..." style="flex:1">
+          <button class="btn" onclick="searchGracenote()">Search</button>
+        </div>
+        <div id="gracenote-list"></div>
+      </div>
       <div class="section-title" style="margin-top:16px">Placement History</div>
       <div class="card" id="oem-history"></div>
     </div>
@@ -943,6 +965,12 @@ async function submitFeedback() {
 }
 
 // --- Data Explorer ---
+let _namedQueries = {};
+let _sortCol = null;
+let _sortAsc = true;
+let _lastResultCols = [];
+let _lastResultRows = [];
+
 async function loadDataExplorer() {
   showLoading('query-library');
   showLoading('tables-ref');
@@ -952,12 +980,26 @@ async function loadDataExplorer() {
     const [queries, tables, history] = await Promise.all([
       api('/api/data/queries'),
       api('/api/data/tables'),
-      api('/api/data/history?limit=10'),
+      api('/api/data/history?limit=20'),
     ]);
 
-    document.getElementById('query-library').innerHTML = (queries.error ? [] : queries).map(q =>
-      `<div class="list-item" style="cursor:pointer" onclick="runNamedQuery('${escapeHtml(q.name)}')"><div class="list-item-title">${escapeHtml(q.name)}</div><div class="list-item-meta"><span>${escapeHtml(q.description)}</span></div></div>`
-    ).join('') || emptyState('&#9881;', 'No queries available', 'Databricks connection required for data queries');
+    // Populate named query dropdown
+    const select = document.getElementById('named-query-select');
+    const queryList = queries.error ? [] : queries;
+    _namedQueries = {};
+    select.innerHTML = '<option value="">-- Select a canonical query --</option>';
+    queryList.forEach(q => {
+      _namedQueries[q.name] = q;
+      const opt = document.createElement('option');
+      opt.value = q.name;
+      opt.textContent = `${q.name} — ${q.description}`;
+      select.appendChild(opt);
+    });
+
+    // Query library (clickable list)
+    document.getElementById('query-library').innerHTML = queryList.map(q =>
+      `<div class="list-item" style="cursor:pointer" onclick="document.getElementById('named-query-select').value='${escapeHtml(q.name)}';runSelectedNamedQuery()"><div class="list-item-title" style="font-size:12px">${escapeHtml(q.name)}</div><div class="list-item-meta"><span>${escapeHtml(q.description)}</span></div></div>`
+    ).join('') || emptyState('&#9881;', 'No queries available', 'Databricks connection required');
 
     const t = tables;
     document.getElementById('tables-ref').innerHTML = `
@@ -966,32 +1008,64 @@ async function loadDataExplorer() {
       ${(t.gotchas || []).map(g => `<div style="font-size:11px;color:var(--orange);padding:2px 0">&#9888; ${g}</div>`).join('')}
     `;
 
-    document.getElementById('query-history').innerHTML = history.length ?
-      `<div class="table-wrap"><table><thead><tr><th>Query</th><th>Rows</th><th>Time</th><th>When</th></tr></thead><tbody>${history.map(h =>
-        `<tr><td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px">${h.query_name || h.sql_text.substring(0, 60)}</td><td>${h.row_count}</td><td>${h.elapsed_sec}s</td><td style="font-size:11px">${new Date(h.created_at).toLocaleString()}</td></tr>`
-      ).join('')}</tbody></table></div>` : emptyState('&#8635;', 'No query history', 'Execute queries above to build history');
-  } catch (err) {
-    // Error toast already shown
+    renderQueryHistory(history);
+  } catch (err) {}
+}
+
+function renderQueryHistory(history) {
+  document.getElementById('query-history').innerHTML = history.length ? history.map(h => {
+    const label = h.query_name || (h.sql_text || '').substring(0, 40);
+    const isErr = !!h.error;
+    return `<div class="list-item" style="padding:8px 12px;cursor:pointer" onclick="document.getElementById('sql-input').value=\`${escapeHtml((h.sql_text||'').replace(/`/g, ''))}\`" title="${escapeHtml(h.sql_text || '')}">
+      <div style="font-size:11px;font-family:monospace;${isErr ? 'color:var(--red)' : ''};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(label)}</div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:2px">
+        <span>${isErr ? 'error' : h.row_count + ' rows'}</span>
+        <span>${h.elapsed_sec}s</span>
+      </div>
+    </div>`;
+  }).join('') : emptyState('&#8635;', 'No history', 'Run queries to build history');
+}
+
+function selectNamedQuery() {
+  const name = document.getElementById('named-query-select').value;
+  if (!name) return;
+  const q = _namedQueries[name];
+  if (q) {
+    document.getElementById('sql-input').value = `-- Named query: ${name}\n-- ${q.description}\n-- (Use "Run Named" button to execute with parameters)`;
   }
 }
 
-async function runNamedQuery(name) {
+async function runSelectedNamedQuery() {
+  const name = document.getElementById('named-query-select').value;
+  if (!name) { showToast('Select a named query first', 'error'); return; }
   document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
   try {
     const r = await api('/api/data/named', { method: 'POST', body: JSON.stringify({ name, days: currentDateRange, limit: 50 }) });
     renderQueryResults(r);
+    // Refresh history
+    api('/api/data/history?limit=20').then(h => renderQueryHistory(h));
   } catch (err) {
     document.getElementById('query-status').textContent = 'Error';
   }
 }
 
+async function runNamedQuery(name) {
+  document.getElementById('named-query-select').value = name;
+  await runSelectedNamedQuery();
+}
+
 async function runSQL() {
   const sql = document.getElementById('sql-input').value.trim();
   if (!sql) return;
+  // Strip comment-only lines for execution
+  const cleanSql = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n').trim();
+  if (!cleanSql) { showToast('No executable SQL', 'error'); return; }
   document.getElementById('query-status').innerHTML = '<span class="spinner"></span> Running...';
   try {
-    const r = await api('/api/data/query', { method: 'POST', body: JSON.stringify({ sql, limit: 100 }) });
+    const r = await api('/api/data/query', { method: 'POST', body: JSON.stringify({ sql: cleanSql, limit: 100 }) });
     renderQueryResults(r);
+    // Refresh history
+    api('/api/data/history?limit=20').then(h => renderQueryHistory(h));
   } catch (err) {
     document.getElementById('query-status').textContent = 'Error';
   }
@@ -999,18 +1073,52 @@ async function runSQL() {
 
 function renderQueryResults(r) {
   if (r.error) {
-    document.getElementById('query-results').innerHTML = `<div style="color:var(--red);font-family:monospace;font-size:12px">${escapeHtml(r.error)}</div>`;
+    document.getElementById('query-results').innerHTML = `<div style="color:var(--red);font-family:monospace;font-size:12px;padding:12px">${escapeHtml(r.error)}</div>`;
     document.getElementById('query-status').textContent = `Error (${r.elapsed_sec || 0}s)`;
     return;
   }
-  const cols = r.columns || [];
-  const rows = r.rows || [];
-  document.getElementById('query-status').textContent = `${r.row_count} rows (${r.elapsed_sec}s)`;
-  if (!rows.length) {
+  _lastResultCols = r.columns || [];
+  _lastResultRows = r.rows || [];
+  _sortCol = null;
+  _sortAsc = true;
+  const info = r.query_name ? `${r.query_name}: ` : '';
+  document.getElementById('query-status').textContent = `${info}${r.row_count} rows (${r.elapsed_sec}s)`;
+  if (!_lastResultRows.length) {
     document.getElementById('query-results').innerHTML = emptyState('&#9881;', 'No results', 'Query returned 0 rows');
     return;
   }
-  document.getElementById('query-results').innerHTML = `<table><thead><tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  renderSortableTable();
+}
+
+function renderSortableTable() {
+  const cols = _lastResultCols;
+  let rows = [..._lastResultRows];
+  if (_sortCol !== null) {
+    rows.sort((a, b) => {
+      const va = a[_sortCol], vb = b[_sortCol];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return _sortAsc ? va - vb : vb - va;
+      return _sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    });
+  }
+  const arrow = col => col === _sortCol ? (_sortAsc ? ' &#9650;' : ' &#9660;') : '';
+  document.getElementById('query-results').innerHTML = `<table><thead><tr>${cols.map(c =>
+    `<th style="cursor:pointer;user-select:none" onclick="sortResultsBy('${escapeHtml(c)}')">${escapeHtml(c)}${arrow(c)}</th>`
+  ).join('')}</tr></thead><tbody>${rows.map(row =>
+    `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`
+  ).join('')}</tbody></table>`;
+}
+
+function sortResultsBy(col) {
+  if (_sortCol === col) {
+    _sortAsc = !_sortAsc;
+  } else {
+    _sortCol = col;
+    _sortAsc = true;
+  }
+  renderSortableTable();
 }
 
 // --- Verifications ---
@@ -1066,15 +1174,42 @@ async function submitVerification() {
 
 // --- Features ---
 async function loadFeatures() {
+  showLoading('experiment-cards');
   showLoading('roadmap-gantt');
   showLoading('roadmap-view');
-  showLoading('experiments-list');
 
   try {
     const [roadmap, experiments] = await Promise.all([
       api('/api/features/roadmap'),
       api('/api/features/experiments'),
     ]);
+
+    // Experiment cards
+    document.getElementById('exp-count').textContent = `(${experiments.length})`;
+    const statusColors = { running: 'var(--green)', planned: 'var(--accent)', completed: 'var(--text3)', analyzing: 'var(--purple)', killed: 'var(--red)' };
+    const statusBadgeCls = { running: 'tag-green', planned: 'tag-blue', completed: 'tag-gray', analyzing: 'tag-purple', killed: 'tag-red' };
+
+    document.getElementById('experiment-cards').innerHTML = experiments.length ? experiments.map(e => {
+      const platforms = Array.isArray(e.platforms) ? e.platforms : [];
+      const metrics = (typeof e.metrics === 'object' && e.metrics && !Array.isArray(e.metrics)) ? e.metrics : {};
+      const metricsHtml = Object.entries(metrics).map(([k, v]) => {
+        if (typeof v === 'object' && v) {
+          return `<div style="font-size:11px;padding:2px 0"><span style="color:var(--text2)">${k}:</span> ${v.current || '—'} / ${v.target || '—'}</div>`;
+        }
+        return `<div style="font-size:11px;padding:2px 0"><span style="color:var(--text2)">${k}:</span> ${v}</div>`;
+      }).join('');
+
+      return `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <strong style="font-size:14px">${escapeHtml(e.name)}</strong>
+          <span class="tag ${statusBadgeCls[e.status] || 'tag-gray'}">${e.status}</span>
+        </div>
+        ${e.hypothesis ? `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">"${escapeHtml(e.hypothesis)}"</div>` : ''}
+        ${e.phase ? `<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Phase: ${e.phase}</div>` : ''}
+        ${platforms.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${platforms.map(p => `<span class="tag tag-purple" style="font-size:10px">${p}</span>`).join('')}</div>` : ''}
+        ${metricsHtml ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px">${metricsHtml}</div>` : ''}
+      </div>`;
+    }).join('') : `<div style="grid-column:1/-1">${emptyState('&#9733;', 'No experiments tracked', 'Add experiments to track hypotheses and results', '<button class="btn btn-primary btn-sm" onclick="showAddExperiment()">Add Experiment</button>')}</div>`;
 
     // Gantt timeline
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1138,31 +1273,33 @@ async function loadFeatures() {
         </div>
       `).join('');
     }
-
-    document.getElementById('experiments-list').innerHTML = experiments.length ?
-      `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Hypothesis</th></tr></thead><tbody>${experiments.map(e =>
-        `<tr><td>${e.name}</td><td>${e.phase}</td><td>${statusTag(e.status)}</td><td style="font-size:12px;max-width:300px">${e.hypothesis || ''}</td></tr>`
-      ).join('')}</tbody></table></div>` : emptyState('&#9733;', 'No experiments tracked', 'Add experiments to track hypotheses and results', '<button class="btn btn-primary btn-sm" onclick="showAddExperiment()">Add Experiment</button>');
   } catch (err) {}
 }
 
 function showAddExperiment() {
-  showModal('Add Experiment', `
-    <div class="form-group"><label>Name</label><input type="text" id="exp-name"></div>
-    <div class="form-group"><label>Phase</label><select id="exp-phase"><option>phase_1</option><option>phase_2</option><option>phase_3</option><option>phase_4</option></select></div>
-    <div class="form-group"><label>Hypothesis</label><textarea id="exp-hypothesis"></textarea></div>
+  showModal('New Experiment', `
+    <div class="form-group"><label>Name</label><input type="text" id="exp-name" placeholder="e.g., EPG browse redesign"></div>
+    <div class="form-group"><label>Phase</label><select id="exp-phase"><option value="">None</option><option>phase_1</option><option>phase_2</option><option>phase_3</option><option>phase_4</option></select></div>
+    <div class="form-group"><label>Hypothesis</label><textarea id="exp-hypothesis" placeholder="If we X, then Y will increase by Z%"></textarea></div>
     <div class="form-group"><label>Status</label><select id="exp-status"><option>planned</option><option>running</option><option>analyzing</option><option>completed</option></select></div>
+    <div class="form-group"><label>Platforms (comma-separated)</label><input type="text" id="exp-platforms" placeholder="e.g., roku, amazon_fire, samsung"></div>
+    <div class="form-group"><label>Statsig ID</label><input type="text" id="exp-statsig" placeholder="Optional Statsig experiment ID"></div>
     <button class="btn btn-primary" onclick="submitExperiment()">Save</button>
   `);
 }
 
 async function submitExperiment() {
   try {
+    const name = document.getElementById('exp-name').value.trim();
+    if (!name) { showToast('Name is required', 'error'); return; }
+    const platforms = document.getElementById('exp-platforms').value.split(',').map(p => p.trim()).filter(Boolean);
     await api('/api/features/experiments', { method: 'POST', body: JSON.stringify({
-      name: document.getElementById('exp-name').value,
+      name,
       phase: document.getElementById('exp-phase').value,
       hypothesis: document.getElementById('exp-hypothesis').value,
       status: document.getElementById('exp-status').value,
+      platforms,
+      statsig_id: document.getElementById('exp-statsig').value,
     })});
     hideModal();
     showToast('Experiment added', 'success');
@@ -1171,6 +1308,8 @@ async function submitExperiment() {
 }
 
 // --- OEM ---
+let _allGracenote = [];
+
 async function loadOEM() {
   showLoading('platform-cards');
   showLoading('gracenote-list');
@@ -1183,25 +1322,95 @@ async function loadOEM() {
       api('/api/oem/gracenote'),
     ]);
 
-    const platformList = platforms.platforms || [];
-    document.getElementById('platform-cards').innerHTML = platformList.length ? platformList.map(p => `
-      <div class="card">
-        <h3 style="color:var(--text)">${p.name}</h3>
-        ${p.tvt_share ? `<div style="font-size:12px">TVT Share: <strong>${p.tvt_share}%</strong></div>` : ''}
-        <div style="font-size:12px;margin-top:4px">Dependency: <span class="tag tag-${p.dependency_level === 'critical' ? 'red' : p.dependency_level === 'high' ? 'orange' : 'gray'}">${p.dependency_level}</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:8px">${p.notes}</div>
-      </div>
-    `).join('') : emptyState('&#9635;', 'No platforms tracked', 'Add OEM platform snapshots to track placement');
+    _allGracenote = gracenote;
+    const src = platforms.source === 'databricks' ? '(live from Databricks)' : '(static fallback)';
+    document.getElementById('oem-source').textContent = src;
 
-    document.getElementById('gracenote-list').innerHTML = gracenote.length ?
-      `<div class="table-wrap"><table><thead><tr><th>Tubi ID</th><th>Gracenote ID</th><th>Name</th><th>Type</th><th>Status</th></tr></thead><tbody>${gracenote.map(m =>
-        `<tr><td style="font-family:monospace;font-size:11px">${m.tubi_content_id}</td><td style="font-family:monospace;font-size:11px">${m.gracenote_id || '—'}</td><td>${m.content_name}</td><td>${m.content_type}</td><td>${statusTag(m.match_status)}</td></tr>`
-      ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No Gracenote mappings', 'Mappings connect Tubi content IDs to Gracenote metadata');
+    const depColors = { critical: 'var(--red)', high: 'var(--orange)', medium: 'var(--yellow)', low: 'var(--text3)' };
+    const depBorders = { critical: 'var(--red)', high: 'var(--orange)', medium: 'var(--yellow)', low: 'var(--border)' };
+
+    const platformList = platforms.platforms || [];
+    document.getElementById('platform-cards').innerHTML = platformList.length ? platformList.map(p => {
+      const tvtDisplay = p.tvt_share != null ? `${p.tvt_share}%` : 'N/A';
+      const hoursDisplay = p.tvt_hours != null ? `${Number(p.tvt_hours).toLocaleString()} hrs` : '';
+      const borderColor = depBorders[p.dependency_level] || 'var(--border)';
+      return `
+      <div class="card" style="border-left:3px solid ${borderColor}">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <h3 style="color:var(--text);margin-bottom:4px">${p.name}</h3>
+          <span class="tag tag-${p.dependency_level === 'critical' ? 'red' : p.dependency_level === 'high' ? 'orange' : p.dependency_level === 'medium' ? 'orange' : 'gray'}">${p.dependency_level}</span>
+        </div>
+        <div class="value" style="font-size:24px;color:${depColors[p.dependency_level] || 'var(--text)'}">${tvtDisplay}</div>
+        ${hoursDisplay ? `<div class="sub">${hoursDisplay} linear TVT (30d)</div>` : '<div class="sub">No TVT data</div>'}
+        <div style="font-size:11px;color:var(--text2);margin-top:8px"><strong>Integration:</strong> ${p.integration}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">${p.notes}</div>
+        ${p.competitors && p.competitors.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${p.competitors.map(c => `<span class="tag tag-gray">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('') : emptyState('&#9635;', 'No platforms tracked', 'Add OEM platform snapshots to track placement');
+
+    renderGracenoteList(gracenote);
 
     document.getElementById('oem-history').innerHTML = snapshots.length ?
       `<div class="table-wrap"><table><thead><tr><th>Platform</th><th>Date</th><th>Notes</th></tr></thead><tbody>${snapshots.map(s =>
         `<tr><td>${s.platform}</td><td>${s.date}</td><td style="font-size:12px">${s.notes}</td></tr>`
       ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No OEM snapshots', 'Track platform placement changes over time', '<button class="btn btn-primary btn-sm" onclick="showAddOEM()">Add Snapshot</button>');
+  } catch (err) {}
+}
+
+function renderGracenoteList(items) {
+  document.getElementById('gracenote-list').innerHTML = items.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Tubi ID</th><th>Gracenote ID</th><th>Name</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>${items.map(m =>
+      `<tr><td style="font-family:monospace;font-size:11px">${m.tubi_content_id}</td><td style="font-family:monospace;font-size:11px">${m.gracenote_id || '—'}</td><td>${m.content_name}</td><td>${m.content_type}</td><td>${statusTag(m.match_status)}</td><td><button class="btn-icon" onclick="deleteGracenote(${m.id})" title="Delete">&#10005;</button></td></tr>`
+    ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No Gracenote mappings', 'Mappings connect Tubi content IDs to Gracenote metadata', '<button class="btn btn-sm" onclick="showAddGracenote()">Add Mapping</button>');
+}
+
+function searchGracenote() {
+  const q = (document.getElementById('gracenote-search').value || '').toLowerCase().trim();
+  if (!q) { renderGracenoteList(_allGracenote); return; }
+  const filtered = _allGracenote.filter(m =>
+    (m.tubi_content_id || '').toLowerCase().includes(q) ||
+    (m.gracenote_id || '').toLowerCase().includes(q) ||
+    (m.content_name || '').toLowerCase().includes(q)
+  );
+  renderGracenoteList(filtered);
+}
+
+function showAddGracenote() {
+  showModal('Add Gracenote Mapping', `
+    <div class="form-group"><label>Tubi Content ID</label><input type="text" id="gn-tubi-id" placeholder="e.g., 100001234"></div>
+    <div class="form-group"><label>Gracenote ID</label><input type="text" id="gn-gracenote-id" placeholder="e.g., GN123456"></div>
+    <div class="form-group"><label>Content Name</label><input type="text" id="gn-name"></div>
+    <div class="form-group"><label>Content Type</label><select id="gn-type"><option>channel</option><option>program</option><option>series</option></select></div>
+    <div class="form-group"><label>Match Status</label><select id="gn-status"><option>unmapped</option><option>mapped</option><option>ambiguous</option><option>manual</option></select></div>
+    <div class="form-group"><label>Notes</label><input type="text" id="gn-notes"></div>
+    <button class="btn btn-primary" onclick="submitGracenote()">Save</button>
+  `);
+}
+
+async function submitGracenote() {
+  try {
+    const tubiId = document.getElementById('gn-tubi-id').value.trim();
+    if (!tubiId) { showToast('Tubi Content ID is required', 'error'); return; }
+    await api('/api/oem/gracenote', { method: 'POST', body: JSON.stringify({
+      tubi_content_id: tubiId,
+      gracenote_id: document.getElementById('gn-gracenote-id').value,
+      content_name: document.getElementById('gn-name').value,
+      content_type: document.getElementById('gn-type').value,
+      match_status: document.getElementById('gn-status').value,
+      notes: document.getElementById('gn-notes').value,
+    })});
+    hideModal();
+    showToast('Gracenote mapping added', 'success');
+    loadOEM();
+  } catch (err) {}
+}
+
+async function deleteGracenote(id) {
+  if (!confirm('Delete this mapping?')) return;
+  try {
+    await api(`/api/oem/gracenote/${id}`, { method: 'DELETE' });
+    showToast('Mapping deleted', 'success');
+    loadOEM();
   } catch (err) {}
 }
 
