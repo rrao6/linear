@@ -839,7 +839,7 @@ def create_enrichment(feedback_id: int, entities: dict, user_context: dict,
         return cur.lastrowid
 
 
-def get_enrichment(feedback_id: int) -> dict | None:
+def get_enrichment(feedback_id: int) -> "dict | None":
     with get_db() as conn:
         row = conn.execute(
             "SELECT * FROM enrichments WHERE feedback_id = ?", (feedback_id,)
@@ -867,7 +867,7 @@ def get_unenriched_feedback_ids(limit: int = 500) -> list:
         return [r["id"] for r in rows]
 
 
-def get_feedback_by_id(feedback_id: int) -> dict | None:
+def get_feedback_by_id(feedback_id: int) -> "dict | None":
     with get_db() as conn:
         row = conn.execute("SELECT * FROM feedback WHERE id = ?", (feedback_id,)).fetchone()
         if not row:

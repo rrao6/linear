@@ -305,24 +305,45 @@ textarea { min-height: 120px; resize: vertical; font-family: 'SF Mono', Menlo, m
     <!-- INTEL MONITOR PAGE -->
     <div class="page" id="page-intel">
       <div class="topbar-actions" style="margin-bottom:16px">
-        <button class="btn btn-primary" onclick="triggerScan()">Run Scan</button>
+        <button class="btn btn-primary" onclick="triggerScan()">Run New Scan</button>
         <button class="btn" onclick="loadIntel()">Refresh</button>
+        <span id="intel-scan-note" style="font-size:11px;color:var(--text3);line-height:32px;margin-left:8px"></span>
       </div>
-      <div class="grid g3" id="intel-stats"></div>
-      <div class="grid g2">
-        <div>
-          <div class="section-title">Threats</div>
-          <div class="card" id="threats-list"></div>
-        </div>
-        <div>
-          <div class="section-title">Opportunities</div>
-          <div class="card" id="opps-list"></div>
-        </div>
+
+      <!-- Latest Scan Summary Card -->
+      <div class="card" id="intel-summary" style="margin-bottom:16px"></div>
+
+      <!-- Stats row -->
+      <div class="grid g4" id="intel-stats"></div>
+
+      <!-- Threats -->
+      <div class="section-title">Threats <span class="count" id="threats-count"></span></div>
+      <div id="threats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:12px;margin-bottom:24px"></div>
+
+      <!-- Opportunities -->
+      <div class="section-title">Opportunities <span class="count" id="opps-count"></span></div>
+      <div id="opps-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:12px;margin-bottom:24px"></div>
+
+      <!-- Trends -->
+      <div class="section-title">Trends <span class="count" id="trends-count"></span></div>
+      <div class="card" id="trends-list" style="margin-bottom:24px"></div>
+
+      <!-- Scan History Timeline -->
+      <div class="section-title">Scan History</div>
+      <div class="card" id="scan-history" style="margin-bottom:24px"></div>
+
+      <!-- Articles -->
+      <div class="section-title">Classified Articles <span class="count" id="articles-count"></span></div>
+      <div style="margin-bottom:8px">
+        <select id="intel-competitor-filter" onchange="filterIntelArticles()" style="width:auto;padding:4px 8px;font-size:12px">
+          <option value="">All Competitors</option>
+        </select>
+        <select id="intel-sort" onchange="filterIntelArticles()" style="width:auto;padding:4px 8px;font-size:12px;margin-left:4px">
+          <option value="relevance">By Relevance</option>
+          <option value="impact">By Impact</option>
+        </select>
       </div>
-      <div class="section-title" style="margin-top:16px">Trends</div>
-      <div class="card" id="trends-list"></div>
-      <div class="section-title" style="margin-top:16px">Competitor Profiles</div>
-      <div class="card" id="competitors-list"></div>
+      <div class="card" id="articles-list" style="max-height:500px;overflow-y:auto"></div>
     </div>
 
     <!-- SENTIMENT PAGE -->
@@ -897,66 +918,210 @@ async function loadDashboard() {
 }
 
 // --- Intel Monitor ---
+let _intelArticles = []; // cache for filtering
+
+function _unwrapAnalysis(obj) {
+  // Analysis data may be nested: {threats: {threats: [...]}} or flat: {threats: [...]}
+  if (!obj) return [];
+  if (Array.isArray(obj)) return obj;
+  // Look for a key matching common names
+  for (const k of Object.keys(obj)) {
+    if (Array.isArray(obj[k])) return obj[k];
+  }
+  return [];
+}
+
+function severityColor(score) {
+  if (score >= 8) return 'var(--red)';
+  if (score >= 5) return 'var(--orange)';
+  return 'var(--yellow)';
+}
+
+function severityBorder(score) {
+  if (score >= 8) return 'rgba(248,81,73,0.4)';
+  if (score >= 5) return 'rgba(210,153,34,0.4)';
+  return 'rgba(227,179,65,0.4)';
+}
+
 async function loadIntel() {
+  showLoading('intel-summary');
   showLoading('intel-stats');
-  showLoading('threats-list');
-  showLoading('opps-list');
+  showLoading('threats-grid');
+  showLoading('opps-grid');
   showLoading('trends-list');
-  showLoading('competitors-list');
+  showLoading('scan-history');
+  showLoading('articles-list');
 
   try {
-    const data = await api('/api/intel/latest');
+    const [data, history] = await Promise.all([
+      api('/api/intel/latest'),
+      api('/api/intel/history'),
+    ]);
+
     if (data.error) {
+      document.getElementById('intel-summary').innerHTML = emptyState('&#9673;', 'No scan data', data.error, '<button class="btn btn-primary btn-sm" onclick="triggerScan()">Run First Scan</button>');
       document.getElementById('intel-stats').innerHTML = '';
-      document.getElementById('threats-list').innerHTML = emptyState('&#9673;', 'No scan data', data.error, '<button class="btn btn-primary btn-sm" onclick="triggerScan()">Run First Scan</button>');
-      document.getElementById('opps-list').innerHTML = emptyState('&#9673;', 'No opportunities yet', 'Run a scan to discover opportunities');
-      document.getElementById('trends-list').innerHTML = emptyState('&#9673;', 'No trends identified', 'Trends emerge after scanning');
-      document.getElementById('competitors-list').innerHTML = emptyState('&#9673;', 'No competitor profiles', 'Profiles are built from scan data');
+      document.getElementById('threats-grid').innerHTML = '';
+      document.getElementById('opps-grid').innerHTML = '';
+      document.getElementById('trends-list').innerHTML = '';
+      document.getElementById('scan-history').innerHTML = '';
+      document.getElementById('articles-list').innerHTML = '';
       return;
     }
 
     const analysis = data.analysis || {};
-    const threats = analysis.threats || [];
-    const opps = analysis.opportunities || [];
-    const trends = analysis.trends || [];
-    const profiles = analysis.profiles || [];
+    const threats = _unwrapAnalysis(analysis.threats);
+    const opps = _unwrapAnalysis(analysis.opportunities);
+    const trends = _unwrapAnalysis(analysis.trends);
     const classified = data.classified?.intel || data.classified?.filtered || [];
+    const articles = data.articles || [];
+    const runMeta = data.run || {};
 
+    _intelArticles = classified;
+
+    // --- Summary card ---
+    const scanDate = data.scan_date || 'Unknown';
+    const runId = data.run_id || '';
+    const statusBadge = runMeta.status === 'completed' ? '<span class="tag tag-green">Completed</span>' : statusTag(runMeta.status || 'unknown');
+    document.getElementById('intel-summary').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <h3 style="color:var(--text);font-size:15px;margin-bottom:4px">Latest Scan: ${scanDate}</h3>
+          <div style="font-size:12px;color:var(--text3)">Run: ${runId}${runMeta.started_at ? ' &middot; ' + new Date(runMeta.started_at).toLocaleString() : ''}</div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <div style="text-align:center"><div style="font-size:20px;font-weight:700">${articles.length || runMeta.articles_collected || 0}</div><div style="font-size:11px;color:var(--text3)">Articles</div></div>
+          <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--red)">${threats.length}</div><div style="font-size:11px;color:var(--text3)">Threats</div></div>
+          <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green)">${opps.length}</div><div style="font-size:11px;color:var(--text3)">Opportunities</div></div>
+          <div>${statusBadge}</div>
+        </div>
+      </div>
+    `;
+
+    // --- Stats cards ---
     document.getElementById('intel-stats').innerHTML = [
-      `<div class="card card-sm"><h3>Classified Intel</h3><div class="value">${classified.length}</div></div>`,
-      `<div class="card card-sm"><h3>Threats</h3><div class="value" style="color:var(--red)">${threats.length}</div></div>`,
-      `<div class="card card-sm"><h3>Opportunities</h3><div class="value" style="color:var(--green)">${opps.length}</div></div>`,
+      `<div class="card card-sm"><h3>Total Articles</h3><div class="value">${articles.length || runMeta.articles_collected || 0}</div><div class="sub">collected from feeds</div></div>`,
+      `<div class="card card-sm"><h3>Classified Intel</h3><div class="value" style="color:var(--accent)">${classified.length}</div><div class="sub">relevance-scored</div></div>`,
+      `<div class="card card-sm"><h3>Threats</h3><div class="value" style="color:var(--red)">${threats.length}</div><div class="sub">competitive threats</div></div>`,
+      `<div class="card card-sm"><h3>Opportunities</h3><div class="value" style="color:var(--green)">${opps.length}</div><div class="sub">actionable opps</div></div>`,
     ].join('');
 
-    document.getElementById('threats-list').innerHTML = threats.length ? threats.map(t =>
-      `<div class="list-item"><div class="list-item-title">${t.description || t.threat_type}</div><div class="list-item-meta"><span>Severity: ${scoreBar(t.severity, 10, 'var(--red)')}</span><span>${t.timeframe || ''}</span></div>${t.defensive_action ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">Action: ${t.defensive_action}</div>` : ''}</div>`
-    ).join('') : emptyState('&#9888;', 'No threats detected', 'Good news — no competitive threats found in latest scan');
+    // --- Threats cards ---
+    document.getElementById('threats-count').textContent = `(${threats.length})`;
+    document.getElementById('threats-grid').innerHTML = threats.length ? threats.map(t => {
+      const sev = t.severity || 0;
+      const borderCol = severityBorder(sev);
+      const sevCol = severityColor(sev);
+      return `<div class="card" style="border-color:${borderCol};border-left:3px solid ${sevCol}">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(t.title || t.threat_type || 'Unknown Threat')}</div>
+          <span class="tag" style="background:${sevCol}20;color:${sevCol};white-space:nowrap;margin-left:8px">${sev}/10</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${escapeHtml(t.description || '')}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          ${t.source_competitor ? `<span class="tag tag-blue">${t.source_competitor}</span>` : ''}
+          ${t.timeframe ? `<span class="tag tag-gray">${t.timeframe}</span>` : ''}
+          ${t.threat_type ? `<span class="tag tag-gray">${t.threat_type}</span>` : ''}
+        </div>
+        ${t.defensive_action ? `<div style="font-size:11px;color:var(--orange);border-top:1px solid var(--border);padding-top:8px"><strong>Defensive action:</strong> ${escapeHtml(t.defensive_action)}</div>` : ''}
+      </div>`;
+    }).join('') : emptyState('&#9888;', 'No threats detected', 'Good news &mdash; no competitive threats found');
 
-    document.getElementById('opps-list').innerHTML = opps.length ? opps.map(o =>
-      `<div class="list-item"><div class="list-item-title">${o.description || o.opportunity_type}</div><div class="list-item-meta"><span>Value: ${scoreBar(o.potential_value, 10, 'var(--green)')}</span><span>Feasibility: ${o.feasibility}/10</span></div></div>`
-    ).join('') : emptyState('&#10003;', 'No opportunities found', 'Opportunities will appear after analysis');
+    // --- Opportunities cards ---
+    document.getElementById('opps-count').textContent = `(${opps.length})`;
+    document.getElementById('opps-grid').innerHTML = opps.length ? opps.map(o => {
+      const val = o.potential_value || 0;
+      const feas = o.feasibility || 0;
+      return `<div class="card" style="border-color:rgba(63,185,80,0.3);border-left:3px solid var(--green)">
+        <div style="font-weight:600;font-size:13px;color:var(--text);margin-bottom:6px">${escapeHtml(o.title || o.opportunity_type || 'Opportunity')}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${escapeHtml(o.description || '')}</div>
+        <div style="display:flex;gap:16px;margin-bottom:8px">
+          <div style="font-size:11px"><span style="color:var(--text3)">Value:</span> <strong style="color:var(--green)">${val}/10</strong></div>
+          <div style="font-size:11px"><span style="color:var(--text3)">Feasibility:</span> <strong style="color:var(--accent)">${feas}/10</strong></div>
+          ${o.opportunity_type ? `<span class="tag tag-gray" style="font-size:10px">${o.opportunity_type}</span>` : ''}
+        </div>
+        ${o.action_items && o.action_items.length ? `<div style="font-size:11px;border-top:1px solid var(--border);padding-top:8px;color:var(--text2)"><strong>Actions:</strong><ul style="margin:4px 0 0 16px;padding:0">${o.action_items.map(a => `<li style="margin-bottom:2px">${escapeHtml(a)}</li>`).join('')}</ul></div>` : ''}
+      </div>`;
+    }).join('') : emptyState('&#10003;', 'No opportunities found', 'Opportunities will appear after analysis');
 
+    // --- Trends table ---
+    document.getElementById('trends-count').textContent = `(${trends.length})`;
     document.getElementById('trends-list').innerHTML = trends.length ?
-      `<div class="table-wrap"><table><thead><tr><th>Trend</th><th>Category</th><th>Direction</th><th>Strength</th></tr></thead><tbody>${trends.map(t =>
-        `<tr><td>${t.name}</td><td><span class="tag tag-purple">${t.category}</span></td><td>${t.direction}</td><td>${scoreBar(t.strength, 10)}</td></tr>`
+      `<div class="table-wrap"><table><thead><tr><th>Trend</th><th>Category</th><th>Direction</th><th>Strength</th><th>Tubi Implication</th></tr></thead><tbody>${trends.map(t =>
+        `<tr><td><strong>${escapeHtml(t.name || '')}</strong><div style="font-size:11px;color:var(--text3);max-width:300px">${escapeHtml(t.description || '').substring(0, 120)}</div></td><td><span class="tag tag-purple">${t.category || ''}</span></td><td>${t.direction || ''}</td><td>${scoreBar(t.strength || 0, 10)}</td><td style="font-size:12px;max-width:250px;color:var(--text2)">${escapeHtml(t.tubi_implication || '').substring(0, 150)}</td></tr>`
       ).join('')}</tbody></table></div>` : emptyState('&#8635;', 'No trends identified', 'Trends emerge from repeated scan analysis');
 
-    document.getElementById('competitors-list').innerHTML = profiles.length ?
-      `<div class="table-wrap"><table><thead><tr><th>Competitor</th><th>Tier</th><th>Channels</th><th>Threat</th><th>Strategy</th></tr></thead><tbody>${profiles.map(p =>
-        `<tr><td><strong>${p.name}</strong></td><td>${p.tier}</td><td>${p.channel_count || '—'}</td><td>${scoreBar(p.threat_level, 10, 'var(--red)')}</td><td style="font-size:12px;max-width:300px">${p.strategy_focus || ''}</td></tr>`
-      ).join('')}</tbody></table></div>` : emptyState('&#9635;', 'No competitor profiles', 'Profiles are built from scan data');
+    // --- Scan history ---
+    const historyList = Array.isArray(history) ? history : [];
+    document.getElementById('scan-history').innerHTML = historyList.length ?
+      `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Run ID</th><th>Status</th><th>Articles</th><th>Classified</th><th>Threats</th><th>Opps</th><th>Analysis</th></tr></thead><tbody>${historyList.map(h =>
+        `<tr><td>${h.date}</td><td style="font-family:monospace;font-size:11px">${h.run_id}</td><td>${statusTag(h.status)}</td><td>${h.article_count}</td><td>${h.classified_count}</td><td style="color:${h.threat_count > 0 ? 'var(--red)' : 'var(--text3)'}">${h.threat_count}</td><td style="color:${h.opportunity_count > 0 ? 'var(--green)' : 'var(--text3)'}">${h.opportunity_count}</td><td>${h.has_analysis ? '<span class="tag tag-green">yes</span>' : '<span class="tag tag-gray">no</span>'}</td></tr>`
+      ).join('')}</tbody></table></div>` : emptyState('&#8635;', 'No scan history', 'Run scans to build history');
+
+    // --- Articles list ---
+    // Build competitor filter options
+    const competitors = [...new Set(classified.map(a => a.competitor_id).filter(Boolean))].sort();
+    const filterEl = document.getElementById('intel-competitor-filter');
+    filterEl.innerHTML = '<option value="">All Competitors</option>' + competitors.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    renderIntelArticles(classified);
+
+    // Ensure threats/opportunities are in work queue (idempotent)
+    api('/api/intel/ensure-work-items', { method: 'POST' }).catch(() => {});
+
   } catch (err) {
-    // Error already shown via toast
+    document.getElementById('intel-summary').innerHTML = emptyState('&#9888;', 'Failed to load intel', 'Check server connection', '<button class="btn btn-sm" onclick="loadIntel()">Retry</button>');
   }
+}
+
+function renderIntelArticles(articles) {
+  document.getElementById('articles-count').textContent = `(${articles.length})`;
+  document.getElementById('articles-list').innerHTML = articles.length ? articles.map(a => {
+    const relScore = a.relevance_score || 0;
+    const impScore = a.impact_score || 0;
+    const relColor = relScore >= 7 ? 'var(--green)' : relScore >= 4 ? 'var(--orange)' : 'var(--text3)';
+    const impColor = impScore >= 7 ? 'var(--red)' : impScore >= 4 ? 'var(--orange)' : 'var(--text3)';
+    return `<div class="list-item">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div class="list-item-title" style="flex:1">${a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" style="color:var(--accent);text-decoration:none">${escapeHtml(a.title || 'Untitled')}</a>` : escapeHtml(a.title || 'Untitled')}</div>
+        <div style="display:flex;gap:8px;margin-left:8px;white-space:nowrap">
+          <span style="font-size:11px;color:${relColor}">Rel: ${relScore}</span>
+          <span style="font-size:11px;color:${impColor}">Imp: ${impScore}</span>
+        </div>
+      </div>
+      ${a.summary ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${escapeHtml(a.summary).substring(0, 200)}</div>` : ''}
+      <div class="list-item-meta" style="margin-top:4px">
+        ${a.competitor_id ? `<span class="tag tag-blue" style="font-size:10px">${a.competitor_id}</span>` : ''}
+        ${a.category ? `<span class="tag tag-gray" style="font-size:10px">${a.category}</span>` : ''}
+        ${a.published_at ? `<span>${a.published_at}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('') : emptyState('&#9673;', 'No classified articles', 'Articles appear after scan classification');
+}
+
+function filterIntelArticles() {
+  const competitor = document.getElementById('intel-competitor-filter').value;
+  const sort = document.getElementById('intel-sort').value;
+  let filtered = _intelArticles;
+  if (competitor) {
+    filtered = filtered.filter(a => a.competitor_id === competitor);
+  }
+  filtered = [...filtered].sort((a, b) => {
+    if (sort === 'impact') return (b.impact_score || 0) - (a.impact_score || 0);
+    return (b.relevance_score || 0) - (a.relevance_score || 0);
+  });
+  renderIntelArticles(filtered);
 }
 
 async function triggerScan() {
   try {
-    showToast('Starting competitive scan...', 'info');
+    document.getElementById('intel-scan-note').textContent = 'Scan starting... (takes ~60s)';
+    showToast('Starting competitive scan... This takes about 60 seconds.', 'info', 10000);
     const r = await api('/api/intel/scan', { method: 'POST' });
-    showToast('Scan started successfully', 'success');
+    showToast('Scan started in background. Refresh in ~60s to see results.', 'success', 15000);
+    document.getElementById('intel-scan-note').textContent = 'Scan running in background...';
   } catch (err) {
-    // Error toast already shown
+    document.getElementById('intel-scan-note').textContent = '';
   }
 }
 

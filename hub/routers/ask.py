@@ -95,7 +95,7 @@ class AskResponse(BaseModel):
     error: str = ""
 
 
-def _validate_sql(sql: str) -> str | None:
+def _validate_sql(sql: str) -> "str | None":
     """Validate that SQL is SELECT-only. Returns error message or None if valid."""
     stripped = sql.strip().rstrip(";").strip()
     if not stripped.upper().startswith("SELECT") and not stripped.upper().startswith("WITH"):

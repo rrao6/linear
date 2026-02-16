@@ -26,6 +26,9 @@ def _load_run_data(scan_date: str, run_id: str) -> dict:
                 data[name] = json.load(f)
     if "classified" in data and "intel" not in data.get("classified", {}):
         data["classified"]["intel"] = data["classified"].get("filtered", [])
+    # Normalize articles — may be {articles: [...]} or [...]
+    if "articles" in data and isinstance(data["articles"], dict):
+        data["articles"] = data["articles"].get("articles", [])
     report_path = run_dir / "report.md"
     if report_path.exists():
         data["report_md"] = report_path.read_text()
@@ -61,18 +64,79 @@ def get_run(scan_date: str, run_id: str):
     return _load_run_data(scan_date, run_id)
 
 
-@router.get("/latest")
-def get_latest():
-    """Get the latest scan run data."""
+def _find_best_run() -> "dict | None":
+    """Find the best run by merging data across recent runs.
+
+    The latest run may not have all data (e.g. classified intel or analysis).
+    This finds the most recent run with analysis data and merges classified
+    data from the best available source.
+    """
     if not SCANS_DIR.exists():
-        return {"error": "No scan data found"}
+        return None
+
+    all_runs = []
     for date_dir in sorted(SCANS_DIR.iterdir(), reverse=True):
         if not date_dir.is_dir():
             continue
         for run_dir in sorted(date_dir.iterdir(), reverse=True):
             if run_dir.is_dir() and (run_dir / "run.json").exists():
-                return _load_run_data(date_dir.name, run_dir.name)
-    return {"error": "No scan data found"}
+                all_runs.append((date_dir.name, run_dir.name))
+    if not all_runs:
+        return None
+
+    # Find the best run with analysis
+    best_analysis_run = None
+    best_classified_run = None
+    best_articles_run = None
+
+    for scan_date, run_id in all_runs:
+        run_dir = SCANS_DIR / scan_date / run_id
+        if not best_analysis_run and (run_dir / "analysis.json").exists():
+            best_analysis_run = (scan_date, run_id)
+        if not best_classified_run:
+            cp = run_dir / "classified.json"
+            if cp.exists():
+                with open(cp) as f:
+                    cd = json.load(f)
+                if cd.get("filtered") or cd.get("all_classified"):
+                    best_classified_run = (scan_date, run_id)
+        if not best_articles_run:
+            ap = run_dir / "articles.json"
+            if ap.exists():
+                best_articles_run = (scan_date, run_id)
+        if best_analysis_run and best_classified_run and best_articles_run:
+            break
+
+    # Use the most recent run as base, then enrich
+    base_date, base_id = all_runs[0]
+    data = _load_run_data(base_date, base_id)
+
+    # Merge analysis from best source if base doesn't have it
+    if "analysis" not in data and best_analysis_run:
+        ad = SCANS_DIR / best_analysis_run[0] / best_analysis_run[1] / "analysis.json"
+        with open(ad) as f:
+            data["analysis"] = json.load(f)
+        data["analysis_source_run"] = best_analysis_run[1]
+
+    # Merge classified from best source if base doesn't have it
+    classified = data.get("classified", {})
+    if not classified.get("filtered") and not classified.get("intel") and best_classified_run:
+        cp = SCANS_DIR / best_classified_run[0] / best_classified_run[1] / "classified.json"
+        with open(cp) as f:
+            data["classified"] = json.load(f)
+        data["classified"]["intel"] = data["classified"].get("filtered", [])
+        data["classified_source_run"] = best_classified_run[1]
+
+    return data
+
+
+@router.get("/latest")
+def get_latest():
+    """Get the latest scan run data, merging from best available sources."""
+    data = _find_best_run()
+    if not data:
+        return {"error": "No scan data found"}
+    return data
 
 
 @router.get("/threats")
@@ -80,7 +144,10 @@ def get_threats():
     """Get all threats from latest analysis."""
     data = get_latest()
     analysis = data.get("analysis", {})
-    return analysis.get("threats", [])
+    threats_data = analysis.get("threats", {})
+    if isinstance(threats_data, dict):
+        return threats_data.get("threats", [])
+    return threats_data
 
 
 @router.get("/opportunities")
@@ -88,7 +155,10 @@ def get_opportunities():
     """Get all opportunities from latest analysis."""
     data = get_latest()
     analysis = data.get("analysis", {})
-    return analysis.get("opportunities", [])
+    opps_data = analysis.get("opportunities", {})
+    if isinstance(opps_data, dict):
+        return opps_data.get("opportunities", [])
+    return opps_data
 
 
 @router.get("/trends")
@@ -96,7 +166,10 @@ def get_trends():
     """Get all trends from latest analysis."""
     data = get_latest()
     analysis = data.get("analysis", {})
-    return analysis.get("trends", [])
+    trends_data = analysis.get("trends", {})
+    if isinstance(trends_data, dict):
+        return trends_data.get("trends", [])
+    return trends_data
 
 
 @router.get("/competitors")
@@ -104,7 +177,10 @@ def get_competitors():
     """Get competitor profiles from latest analysis."""
     data = get_latest()
     analysis = data.get("analysis", {})
-    return analysis.get("profiles", [])
+    profiles_data = analysis.get("profiles", {})
+    if isinstance(profiles_data, dict):
+        return profiles_data.get("profiles", [])
+    return profiles_data
 
 
 def _get_sorted_runs() -> list[dict]:
@@ -255,23 +331,166 @@ def ingest_run(scan_date: str, run_id: str):
     return {"status": "ingested", **result}
 
 
+@router.post("/ensure-work-items")
+def ensure_work_items():
+    """Ensure latest threats/opportunities exist as work items.
+
+    Checks if work items already exist for the latest scan's threats and
+    opportunities. Creates any that are missing. Idempotent.
+    """
+    data = _find_best_run()
+    if not data or "analysis" not in data:
+        return {"status": "no_analysis", "created": 0}
+
+    analysis = data["analysis"]
+    created = 0
+
+    # Get existing work item titles to avoid duplicates
+    existing = db.get_work_items(limit=500)
+    existing_titles = {w["title"] for w in existing}
+
+    # Threats
+    threats_data = analysis.get("threats", {})
+    threats = threats_data.get("threats", []) if isinstance(threats_data, dict) else []
+    for threat in threats:
+        title = threat.get("title") or threat.get("description", "")[:80]
+        if title in existing_titles:
+            continue
+        description = threat.get("description", "")
+        if threat.get("defensive_action"):
+            description += f"\n\nDefensive action: {threat['defensive_action']}"
+        metadata = {
+            "source": "ci_scan",
+            "scan_date": data.get("scan_date", ""),
+            "threat_type": threat.get("threat_type", ""),
+            "severity": threat.get("severity", 0),
+            "timeframe": threat.get("timeframe", ""),
+            "source_competitor": threat.get("source_competitor", ""),
+        }
+        db.create_work_item(
+            type="threat",
+            title=title,
+            description=description,
+            priority="high",
+            tags=["ci_scan", "threat"],
+            metadata=metadata,
+        )
+        existing_titles.add(title)
+        created += 1
+
+    # Opportunities
+    opps_data = analysis.get("opportunities", {})
+    opps = opps_data.get("opportunities", []) if isinstance(opps_data, dict) else []
+    for opp in opps:
+        title = opp.get("title") or opp.get("description", "")[:80]
+        if title in existing_titles:
+            continue
+        description = opp.get("description", "")
+        if opp.get("action_items"):
+            description += "\n\nAction items:\n" + "\n".join(f"- {a}" for a in opp["action_items"])
+        potential = opp.get("potential_value", 0)
+        feasibility = opp.get("feasibility", 0)
+        priority = "high" if (potential * feasibility) > 40 else "medium"
+        metadata = {
+            "source": "ci_scan",
+            "scan_date": data.get("scan_date", ""),
+            "opportunity_type": opp.get("opportunity_type", ""),
+            "potential_value": potential,
+            "feasibility": feasibility,
+            "competitor_gap": opp.get("competitor_gap", ""),
+        }
+        db.create_work_item(
+            type="opportunity",
+            title=title,
+            description=description,
+            priority=priority,
+            tags=["ci_scan", "opportunity"],
+            metadata=metadata,
+        )
+        existing_titles.add(title)
+        created += 1
+
+    return {"status": "ok", "created": created, "threats": len(threats), "opportunities": len(opps)}
+
+
 @router.get("/history")
 def scan_history():
-    """List all past scan runs with article count, threat count, and date."""
+    """List all past scan runs with article count, threat count, and date.
+
+    Reads actual file contents to get accurate counts since run.json
+    metadata may not always be updated.
+    """
     history = []
     for run in _get_sorted_runs():
         run_dir = SCANS_DIR / run["date"] / run["run_id"]
+
+        # Get counts from actual files when run.json shows 0
+        article_count = run.get("articles_collected", 0)
+        classified_count = run.get("articles_classified", 0)
+        threat_count = run.get("threats_found", 0)
+        opp_count = run.get("opportunities_found", 0)
+        trend_count = run.get("trends_identified", 0)
+
+        # Read articles file for accurate count
+        if article_count == 0:
+            articles_path = run_dir / "articles.json"
+            if articles_path.exists():
+                try:
+                    with open(articles_path) as f:
+                        articles = json.load(f)
+                    if isinstance(articles, list):
+                        article_count = len(articles)
+                    elif isinstance(articles, dict):
+                        article_count = len(articles.get("articles", []))
+                except Exception:
+                    pass
+
+        # Read classified file for count
+        if classified_count == 0:
+            classified_path = run_dir / "classified.json"
+            if classified_path.exists():
+                try:
+                    with open(classified_path) as f:
+                        classified = json.load(f)
+                    classified_count = len(classified.get("filtered", [])) or len(classified.get("all_classified", []))
+                except Exception:
+                    pass
+
+        # Read analysis for threat/opp/trend counts
+        if threat_count == 0 or opp_count == 0 or trend_count == 0:
+            analysis_path = run_dir / "analysis.json"
+            if analysis_path.exists():
+                try:
+                    with open(analysis_path) as f:
+                        analysis = json.load(f)
+                    threats_data = analysis.get("threats", {})
+                    if isinstance(threats_data, dict):
+                        threat_count = len(threats_data.get("threats", []))
+                    opps_data = analysis.get("opportunities", {})
+                    if isinstance(opps_data, dict):
+                        opp_count = len(opps_data.get("opportunities", []))
+                    trends_data = analysis.get("trends", {})
+                    if isinstance(trends_data, dict):
+                        trend_count = len(trends_data.get("trends", []))
+                except Exception:
+                    pass
+
+        has_analysis = (run_dir / "analysis.json").exists()
+        has_classified = classified_count > 0
+
         entry = {
             "date": run["date"],
             "run_id": run["run_id"],
             "started_at": run.get("started_at", ""),
             "finished_at": run.get("finished_at", ""),
             "status": run.get("status", "unknown"),
-            "article_count": run.get("articles_collected", 0),
-            "classified_count": run.get("articles_classified", 0),
-            "threat_count": run.get("threats_found", 0),
-            "opportunity_count": run.get("opportunities_found", 0),
-            "trend_count": run.get("trends_identified", 0),
+            "article_count": article_count,
+            "classified_count": classified_count,
+            "threat_count": threat_count,
+            "opportunity_count": opp_count,
+            "trend_count": trend_count,
+            "has_analysis": has_analysis,
+            "has_classified": has_classified,
         }
         history.append(entry)
     return history
